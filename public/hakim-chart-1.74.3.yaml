@@ -1,0 +1,25 @@
+apiVersion: v2
+name: hakim
+description: Hakim helm chart
+type: application
+version: "1.74.3"
+dependencies:
+  - name: hakim-backend
+    version: 1.74.3
+    repository: "@hakim-helm"
+    condition: hakim-backend.enabled
+
+  - name: hakim-ui
+    version: 5.11.4
+    repository: "@hakim-helm"
+    condition: hakim-ui.enabled
+
+  - name: hakim-infra
+    version: 1.27.0
+    repository: "@hakim-helm"
+    condition: hakim-infra.enabled
+
+  - name: pirireis-gis
+    version: 0.1.60
+    repository: "@hakim-helm"
+    condition: hakim-backend.enabled
