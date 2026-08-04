@@ -2,14 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { compareSemVerDesc } from "../utils/semver";
 import { parseYamlText } from "../utils/yamlParser";
 
-const STORAGE_KEY_DATA = "hakim_versions_data";
-const STORAGE_KEY_FILE_NAME = "hakim_versions_filename";
+const STORAGE_KEY_DATA = "Ilgin_versions_data";
+const STORAGE_KEY_FILE_NAME = "Ilgin_versions_filename";
 
 /**
- * Hakim versiyon verisinin okunması, yüklenmesi, sıralanması,
+ * Ilgin versiyon verisinin okunması, yüklenmesi, sıralanması,
  * aranması ve localStorage ile kalıcı saklanması mantığını barındıran hook.
  */
-export function useHakimVersions() {
+export function useIlginVersions() {
   // 1. İlk açılışta veriyi localStorage'dan oku
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY_DATA);
@@ -25,7 +25,7 @@ export function useHakimVersions() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [fileName, setFileName] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY_FILE_NAME) || "hakim-versions.yaml";
+    return localStorage.getItem(STORAGE_KEY_FILE_NAME) || "Ilgin-versions.yaml";
   });
 
   const [loading, setLoading] = useState(false);
@@ -53,18 +53,18 @@ export function useHakimVersions() {
     setError(null);
   }, [updateDataAndStore]);
 
-  // İlk açılış kontrolü: Eğer localStorage boşsa 'public/hakim-versions.yaml' dosyasını yükle
+  // İlk açılış kontrolü: Eğer localStorage boşsa 'public/Ilgin-versions.yaml' dosyasını yükle
   useEffect(() => {
     const hasStoredData = localStorage.getItem(STORAGE_KEY_DATA);
     if (hasStoredData) return; // Zaten saklanmış veri varsa dışarıdan tekrar çekme
 
     setLoading(true);
-    fetch("/hakim-versions.yaml")
+    fetch("/Ilgin-versions.yaml")
       .then((res) => {
-        if (!res.ok) throw new Error("Varsayılan hakim-versions.yaml bulunamadı.");
+        if (!res.ok) throw new Error("Varsayılan Ilgin-versions.yaml bulunamadı.");
         return res.text();
       })
-      .then((text) => applyParsedResult(text, "hakim-versions.yaml"))
+      .then((text) => applyParsedResult(text, "Ilgin-versions.yaml"))
       .catch((err) => {
         console.warn("Otomatik dosya okuma uyarısı:", err.message);
         setError("Varsayılan dosya yüklenemedi. Lütfen 'Farklı YAML Yükle' butonu ile dosyanızı seçin.");
@@ -144,7 +144,7 @@ export function useHakimVersions() {
     localStorage.removeItem(STORAGE_KEY_DATA);
     localStorage.removeItem(STORAGE_KEY_FILE_NAME);
     setData({ versions: [] });
-    setFileName("hakim-versions.yaml");
+    setFileName("Ilgin-versions.yaml");
   };
 
   // Versiyonları sırala

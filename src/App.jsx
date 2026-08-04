@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { Box, Container, Typography, Stack, Alert } from "@mui/material";
-import { useHakimVersions } from "./hooks/useHakimVersions";
+import { useIlginVersions } from "./hooks/useIlginVersions";
 import Toolbar from "./components/Toolbar";
 import VersionAccordion from "./components/VersionAccordion";
 import { LoadingState, NoResultsState } from "./components/EmptyState";
@@ -20,7 +20,7 @@ export default function App() {
     handleFileUpload,
     fetchFromUrl,
     urlLoading,
-  } = useHakimVersions();
+  } = useIlginVersions();
 
 useEffect(() => {
   const loadVersionFromUrl = () => {
@@ -60,10 +60,10 @@ useEffect(() => {
 
         <Stack spacing={0.5} sx={{ mb: 4 }}>
           <Typography variant="h4" fontWeight={700} sx={{ color: "#1a2027" }}>
-            Hakim Versions
+            Ilgin Versions
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Hakim BE, FE, Infra ve dinamik servis sürüm detayları.
+            Ilgin BE, FE, Infra ve dinamik servis sürüm detayları.
           </Typography>
         </Stack>
 

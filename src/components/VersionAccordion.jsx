@@ -76,3 +76,4 @@ export default function VersionAccordion({ version, isLatest }) {
     </Accordion>
   );
 }
+

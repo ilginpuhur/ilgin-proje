@@ -22,7 +22,7 @@ export const parseYamlText = (rawText, sourceName = "dosya") => {
     // 1. HELM CHART FORMATI KONTROLÜ
     if (parsedData && Array.isArray(parsedData.dependencies)) {
       const formattedVersion = {
-        name: `${parsedData.name || "Hakim"} - Chart ${parsedData.version || ""}`.trim(),
+        name: `${parsedData.name || "Ilgin"} - Chart ${parsedData.version || ""}`.trim(),
         releaseDate: new Date().toLocaleDateString("tr-TR"),
       };
 
@@ -51,3 +51,4 @@ export const parseYamlText = (rawText, sourceName = "dosya") => {
     return { data: null, error: `YAML dosyası okunamadı: ${err.message}` };
   }
 };
+

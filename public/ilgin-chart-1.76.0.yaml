@@ -1,0 +1,25 @@
+apiVersion: v2
+name: Ilgin
+description: Ilgin helm chart
+type: application
+version: "1.76.0"
+dependencies:
+  - name: Ilgin-backend
+    version: 1.76.2
+    repository: "@Ilgin-helm"
+    condition: Ilgin-backend.enabled
+
+  - name: Ilgin-ui
+    version: 5.13.0
+    repository: "@Ilgin-helm"
+    condition: Ilgin-ui.enabled
+
+  - name: Ilgin-infra
+    version: 1.28.0
+    repository: "@Ilgin-helm"
+    condition: Ilgin-infra.enabled
+
+  - name: pirireis-gis
+    version: 0.1.70
+    repository: "@Ilgin-helm"
+    condition: Ilgin-backend.enabled
