@@ -1,31 +1,63 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { compareSemVerDesc } from "../utils/semver";
 import { parseYamlText } from "../utils/yamlParser";
 
+const STORAGE_KEY_DATA = "hakim_versions_data";
+const STORAGE_KEY_FILE_NAME = "hakim_versions_filename";
+
 /**
- * Hakim versiyon verisinin okunması, yüklenmesi, sıralanması
- * ve aranmasıyla ilgili tüm mantığı barındıran hook.
+ * Hakim versiyon verisinin okunması, yüklenmesi, sıralanması,
+ * aranması ve localStorage ile kalıcı saklanması mantığını barındıran hook.
  */
 export function useHakimVersions() {
-  const [data, setData] = useState({ versions: [] });
+  // 1. İlk açılışta veriyi localStorage'dan oku
+  const [data, setData] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_DATA);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("localStorage okuma hatası:", e);
+      }
+    }
+    return { versions: [] };
+  });
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [fileName, setFileName] = useState("hakim-versions.yaml");
-  const [loading, setLoading] = useState(true);
+  const [fileName, setFileName] = useState(() => {
+    return localStorage.getItem(STORAGE_KEY_FILE_NAME) || "hakim-versions.yaml";
+  });
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [urlLoading, setUrlLoading] = useState(false);
 
-  const applyParsedResult = (rawText, sourceName) => {
+  // Veriyi hem React State'e hem de localStorage'a kaydeden yardımcı fonksiyon
+  const updateDataAndStore = useCallback((newData, newFileName) => {
+    setData(newData);
+    localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(newData));
+
+    if (newFileName) {
+      setFileName(newFileName);
+      localStorage.setItem(STORAGE_KEY_FILE_NAME, newFileName);
+    }
+  }, []);
+
+  const applyParsedResult = useCallback((rawText, sourceName) => {
     const { data: parsed, error: parseError } = parseYamlText(rawText, sourceName);
     if (parseError) {
       setError(parseError);
       return;
     }
-    setData(parsed);
+    updateDataAndStore(parsed, sourceName);
     setError(null);
-  };
+  }, [updateDataAndStore]);
 
-  // İlk açılışta 'public/hakim-versions.yaml' okuma
+  // İlk açılış kontrolü: Eğer localStorage boşsa 'public/hakim-versions.yaml' dosyasını yükle
   useEffect(() => {
+    const hasStoredData = localStorage.getItem(STORAGE_KEY_DATA);
+    if (hasStoredData) return; // Zaten saklanmış veri varsa dışarıdan tekrar çekme
+
     setLoading(true);
     fetch("/hakim-versions.yaml")
       .then((res) => {
@@ -38,50 +70,49 @@ export function useHakimVersions() {
         setError("Varsayılan dosya yüklenemedi. Lütfen 'Farklı YAML Yükle' butonu ile dosyanızı seçin.");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [applyParsedResult]);
 
-// Kullanıcının dosya yüklemesi -> mevcut listeye ekler, üzerine yazmaz
-const handleFileUpload = (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
+  // Kullanıcının dosya yüklemesi -> mevcut listeyle birleştirir ve localStorage'a yazar
+  const handleFileUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  setError(null);
+    setError(null);
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const rawText = e.target?.result;
-    if (typeof rawText !== "string") return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawText = e.target?.result;
+      if (typeof rawText !== "string") return;
 
-    const { data: parsed, error: parseError } = parseYamlText(rawText, file.name);
+      const { data: parsed, error: parseError } = parseYamlText(rawText, file.name);
 
-    if (parseError || !parsed?.versions) {
-      setError(parseError || `"${file.name}" dosyasından versiyon okunamadı.`);
-      return;
-    }
+      if (parseError || !parsed?.versions) {
+        setError(parseError || `"${file.name}" dosyasından versiyon okunamadı.`);
+        return;
+      }
 
-    // Yeni gelen versiyonları, aynı isimli olanların üzerine yazarak,
-    // mevcut listeyle birleştir
-    setData((prevData) => {
-      const existing = Array.isArray(prevData?.versions) ? prevData.versions : [];
+      // Yeni gelen versiyonları aynı isimli olanların üzerine yazıp listeye ekle
+      const existing = Array.isArray(data?.versions) ? data.versions : [];
       const merged = [...existing];
 
       parsed.versions.forEach((newVersion) => {
         const idx = merged.findIndex((v) => v.name === newVersion.name);
         if (idx >= 0) {
-          merged[idx] = newVersion; // aynı isimli versiyon varsa güncelle
+          merged[idx] = newVersion;
         } else {
-          merged.push(newVersion); // yoksa yeni ekle
+          merged.push(newVersion);
         }
       });
 
-      return { versions: merged };
-    });
-
-    setFileName(`Son eklenen: ${file.name}`);
+      const updatedData = { versions: merged };
+      const updatedFileName = `Son eklenen: ${file.name}`;
+      
+      updateDataAndStore(updatedData, updatedFileName);
+    };
+    reader.readAsText(file);
   };
-  reader.readAsText(file);
-};
-  // Verilen URL'den YAML içeriğini çekme
+
+  // Verilen URL'den YAML içeriğini çekme ve kaydetme
   const fetchFromUrl = async (url) => {
     if (!url || !url.trim()) {
       setError("Lütfen geçerli bir URL girin.");
@@ -97,7 +128,6 @@ const handleFileUpload = (event) => {
         throw new Error(`URL ${res.status} koduyla döndü.`);
       }
       const text = await res.text();
-      setFileName(url);
       applyParsedResult(text, url);
     } catch (err) {
       console.error("URL'den çekme hatası:", err.message);
@@ -107,6 +137,14 @@ const handleFileUpload = (event) => {
     } finally {
       setUrlLoading(false);
     }
+  };
+
+  // Saklanan verileri sıfırlayıp varsayılana dönme fonksiyonu
+  const clearStorage = () => {
+    localStorage.removeItem(STORAGE_KEY_DATA);
+    localStorage.removeItem(STORAGE_KEY_FILE_NAME);
+    setData({ versions: [] });
+    setFileName("hakim-versions.yaml");
   };
 
   // Versiyonları sırala
@@ -141,5 +179,6 @@ const handleFileUpload = (event) => {
     handleFileUpload,
     fetchFromUrl,
     urlLoading,
+    clearStorage,
   };
 }
