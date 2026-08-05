@@ -22,40 +22,93 @@ export default function App() {
     urlLoading,
   } = useIlginVersions();
 
-useEffect(() => {
-  const loadVersionFromUrl = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    // Hem mentörün istediği 'dataUrl' hem de alternatif parametreleri yakalıyoruz
-    const fileUrl = 
-      urlParams.get("dataUrl") || 
-      urlParams.get("target") || 
-      urlParams.get("url") || 
-      urlParams.get("v");
+  useEffect(() => {
+    const loadAllReleases = async () => {
+      // 1. URL Parametresi Kontrolü (?dataUrl=...)
+      const urlParams = new URLSearchParams(window.location.search);
+      const fileUrl =
+        urlParams.get("dataUrl") ||
+        urlParams.get("target") ||
+        urlParams.get("url") ||
+        urlParams.get("v");
 
-    // Değişken adının 'fileUrl' olduğundan ve if içinde doğru çağrıldığından emin oluyoruz
-    if (fileUrl) {
-      fetchFromUrl(fileUrl);
-    }
-  };
+      if (fileUrl) {
+        fetchFromUrl(fileUrl);
+        return;
+      }
 
-  // Sayfa yüklendiğinde çalıştır
-  loadVersionFromUrl();
+      // 2. GitHub Releases Üzerinden Tag'leri Çekme
+      const OWNER = "ilginpuhur";
+      const REPO = "ilgin-charts";
 
-  // URL değişimlerini (Geri/İleri butonları veya pushState) dinle
-  window.addEventListener("popstate", loadVersionFromUrl);
+      try {
+        const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases`);
+        if (!res.ok) throw new Error("GitHub release listesi alınamadı.");
+        const releases = await res.json();
 
-  return () => {
-    window.removeEventListener("popstate", loadVersionFromUrl);
-  };
-}, []);
+        if (!releases || releases.length === 0) return;
+
+        // Bütün release'leri dolaşıp dosyaları paralel indir
+        const fetchPromises = releases.map(async (release) => {
+          const tag = release.tag_name; // Örn: v2.0.0
+          const versionNum = tag.replace("v", "");
+          
+          const rawUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${tag}/ilgin-chart-${versionNum}.yaml`;
+
+          try {
+            const fileRes = await fetch(rawUrl);
+            if (fileRes.ok) {
+              return { text: await fileRes.text(), tag };
+            }
+          } catch {
+            return null;
+          }
+          return null;
+        });
+
+        const results = await Promise.all(fetchPromises);
+        const validResults = results.filter(Boolean);
+
+        // Bulunan en güncel dosyanın Raw adresi ile yükleme yap (${OWNER} düzeltildi)
+        if (validResults.length > 0) {
+          const latestTag = validResults[0].tag;
+          const versionNum = latestTag.replace("v", "");
+          fetchFromUrl(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${latestTag}/ilgin-chart-${versionNum}.yaml`);
+        }
+      } catch (err) {
+        console.warn("GitHub Release yükleme uyarısı:", err.message);
+      }
+    };
+
+    loadAllReleases();
+
+    window.addEventListener("popstate", loadAllReleases);
+    return () => {
+      window.removeEventListener("popstate", loadAllReleases);
+    };
+  }, [fetchFromUrl]);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f4f6f8", py: { xs: 3, md: 5 } }}>
       <Container maxWidth="md">
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
-          <img src={logo} alt="Logo" style={{ height: 120, objectFit: "contain" }} />
-          <img src={bannerImage} alt="Banner" style={{ height: 120, objectFit: "contain" }} />
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 3,
+          }}
+        >
+          <img
+            src={logo}
+            alt="Logo"
+            style={{ height: 120, objectFit: "contain" }}
+          />
+          <img
+            src={bannerImage}
+            alt="Banner"
+            style={{ height: 120, objectFit: "contain" }}
+          />
         </Box>
 
         <Stack spacing={0.5} sx={{ mb: 4 }}>

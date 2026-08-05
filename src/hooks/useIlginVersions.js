@@ -113,31 +113,47 @@ export function useIlginVersions() {
   };
 
   // Verilen URL'den YAML içeriğini çekme ve kaydetme
-  const fetchFromUrl = async (url) => {
-    if (!url || !url.trim()) {
-      setError("Lütfen geçerli bir URL girin.");
-      return;
-    }
+  const fetchFromUrl = useCallback(async (targetUrl) => {
+  if (!targetUrl) return;
 
-    setUrlLoading(true);
-    setError(null);
+  // 1. CORS Engeline Takılan GitHub Release Linkini RAW Linke Dönüştür
+  let cleanUrl = targetUrl;
+  
+  if (cleanUrl.includes("github.com") && cleanUrl.includes("/releases/download/")) {
+    // Örneğin: https://github.com/ilginpuhur/ilgin-charts/releases/download/v2.0.0/ilgin-chart-2.0.0.yaml
+    // Dönüşecek: https://raw.githubusercontent.com/ilginpuhur/ilgin-charts/v2.0.0/ilgin-chart-2.0.0.yaml
+    cleanUrl = cleanUrl
+      .replace("github.com", "raw.githubusercontent.com")
+      .replace("/releases/download/", "/");
+  }
 
-    try {
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`URL ${res.status} koduyla döndü.`);
-      }
-      const text = await res.text();
-      applyParsedResult(text, url);
-    } catch (err) {
-      console.error("URL'den çekme hatası:", err.message);
-      setError(
-        `URL'den veri çekilemedi: ${err.message}. Hedef site CORS'a izin vermiyor olabilir.`
-      );
-    } finally {
-      setUrlLoading(false);
+  setLoading(true);
+  setError(null);
+
+  try {
+    const response = await fetch(cleanUrl);
+    if (!response.ok) {
+      throw new Error(`Dosya indirilemedi (HTTP ${response.status})`);
     }
-  };
+    const text = await response.text();
+    
+    // YAML parse etme işlemin
+    const { data: parsed, error: parseError } = parseYamlText(text, cleanUrl.split("/").pop());
+
+    if (parseError) {
+      setError(parseError);
+    } else if (parsed?.versions) {
+      updateDataAndStore({ versions: parsed.versions }, "URL'den yüklendi");
+    } else {
+      setError("YAML ayrıştırıldı ancak geçerli 'versions' yapısı bulunamadı.");
+    }
+  } catch (err) {
+    console.error("URL'den çekme hatası:", err.message);
+    setError("Dosya çekilirken CORS veya Ağ Hatası oluştu: " + err.message);
+  } finally {
+    setLoading(false);
+  }
+}, []); // Bağımlılık dizisini boş tutarak sonsuz döngüyü engelle
 
   // Saklanan verileri sıfırlayıp varsayılana dönme fonksiyonu
   const clearStorage = () => {
