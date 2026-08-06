@@ -31,6 +31,7 @@ export default function Toolbar({
   const handleFetchClick = () => {
     onFetchUrl(urlInput);
   };
+
   return (
     <Paper
       elevation={0}
@@ -44,7 +45,7 @@ export default function Toolbar({
         onChange={onFileUpload}
       />
 
-      <Grid container spacing={2} alignItems="center">
+      <Grid container spacing={2} sx={{ alignItems: "center" }}>
         <Grid item xs={12} sm={5}>
           <Button
             variant="contained"
@@ -82,7 +83,7 @@ export default function Toolbar({
         </Grid>
       </Grid>
 
-      <Grid container spacing={2} alignItems="center" sx={{ mt: 0.5 }}>
+      <Grid container spacing={2} sx={{ alignItems: "center", mt: 0.5 }}>
         <Grid item xs={12} sm={9}>
           <TextField
             fullWidth
@@ -115,7 +116,7 @@ export default function Toolbar({
 
       <Box sx={{ mt: 2, display: "flex", gap: 1, alignItems: "center" }}>
         <Chip
-          label={`Aktif Dosya: ${fileName}`}
+          label={`Aktif Dosya: ${fileName || "Yüklenmedi"}`}
           variant="outlined"
           size="small"
           color={error ? "error" : "success"}
@@ -130,4 +131,3 @@ export default function Toolbar({
     </Paper>
   );
 }
-

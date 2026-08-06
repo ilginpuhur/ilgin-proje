@@ -19,10 +19,13 @@ export default function App() {
     filteredVersions,
     handleFileUpload,
     fetchFromUrl,
+    loadMultipleYamlTexts,
     urlLoading,
   } = useIlginVersions();
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadAllReleases = async () => {
       // 1. URL Parametresi Kontrolü (?dataUrl=...)
       const urlParams = new URLSearchParams(window.location.search);
@@ -42,41 +45,66 @@ export default function App() {
       const REPO = "ilgin-charts";
 
       try {
-        const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases`);
+        const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases?per_page=100`);
         if (!res.ok) throw new Error("GitHub release listesi alınamadı.");
         const releases = await res.json();
 
         if (!releases || releases.length === 0) return;
 
-        // Bütün release'leri dolaşıp dosyaları paralel indir
+        // Bütün release'leri dolaşıp herhangi bir YAML dosyasını bul ve indir
         const fetchPromises = releases.map(async (release) => {
-          const tag = release.tag_name; // Örn: v2.0.0
-          const versionNum = tag.replace("v", "");
-          
-          const rawUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${tag}/ilgin-chart-${versionNum}.yaml`;
+          const tag = release.tag_name;
+          const versionNum = tag.replace(/^v/, "");
 
-          try {
-            const fileRes = await fetch(rawUrl);
-            if (fileRes.ok) {
-              return { text: await fileRes.text(), tag };
-            }
-          } catch {
-            return null;
+          // 1. AŞAMA: Release Assets içinde uzantısı .yaml / .yml olan İLK dosyayı bul
+          const yamlAsset = release.assets?.find(
+            (a) => a.name.endsWith(".yaml") || a.name.endsWith(".yml")
+          );
+
+          // İndirilecek muhtemel URL listesi (öncelik sırasına göre)
+          const possibleUrls = [];
+
+          if (yamlAsset) {
+            possibleUrls.push(yamlAsset.browser_download_url);
           }
+
+          // Fallback Raw URL alternatifleri (İsim ne olursa olsun yakalamak için)
+          possibleUrls.push(
+            `https://raw.githubusercontent.com/${OWNER}/${REPO}/${tag}/ilgin-chart-${versionNum}.yaml`,
+            `https://raw.githubusercontent.com/${OWNER}/${REPO}/${tag}/Chart.yaml`,
+            `https://raw.githubusercontent.com/${OWNER}/${REPO}/${tag}/chart.yaml`,
+            `https://raw.githubusercontent.com/${OWNER}/${REPO}/${tag}/ilgin-chart.yaml`
+          );
+
+          // Muhtemel URL'leri sırayla dene, hangisi 200 OK dönerse onu al
+          for (const url of possibleUrls) {
+            try {
+              const fileRes = await fetch(url);
+              if (fileRes.ok) {
+                const text = await fileRes.text();
+                // YAML içeriğinde 'apiVersion' veya 'name' veya 'version' var mı kontrol et (yanlış HTML indirmemek için)
+                if (text.includes("apiVersion") || text.includes("name:") || text.includes("dependencies:")) {
+                  const fetchedFileName = url.split("/").pop();
+                  return { text, tag, fileName: fetchedFileName };
+                }
+              }
+            } catch {
+              // Sonraki URL seçeneğine geç
+            }
+          }
+
+          console.warn(`[YAML Bulunamadı] Tag: ${tag} için geçerli bir YAML dosyası indirilemedi.`);
           return null;
         });
 
         const results = await Promise.all(fetchPromises);
         const validResults = results.filter(Boolean);
 
-        // Bulunan en güncel dosyanın Raw adresi ile yükleme yap (${OWNER} düzeltildi)
-        if (validResults.length > 0) {
-          const latestTag = validResults[0].tag;
-          const versionNum = latestTag.replace("v", "");
-          fetchFromUrl(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${latestTag}/ilgin-chart-${versionNum}.yaml`);
+        if (isMounted && validResults.length > 0 && loadMultipleYamlTexts) {
+          loadMultipleYamlTexts(validResults);
         }
       } catch (err) {
-        console.warn("GitHub Release yükleme uyarısı:", err.message);
+        if (isMounted) console.warn("GitHub Release yükleme uyarısı:", err.message);
       }
     };
 
@@ -84,9 +112,10 @@ export default function App() {
 
     window.addEventListener("popstate", loadAllReleases);
     return () => {
+      isMounted = false;
       window.removeEventListener("popstate", loadAllReleases);
     };
-  }, [fetchFromUrl]);
+  }, []);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "#f4f6f8", py: { xs: 3, md: 5 } }}>
@@ -146,7 +175,7 @@ export default function App() {
           <Stack spacing={1.5}>
             {filteredVersions.map((version, idx) => (
               <VersionAccordion
-                key={`${version.name}-${idx}`}
+                key={`${version.name}-${version.version}-${idx}`}
                 version={version}
                 isLatest={idx === 0}
               />

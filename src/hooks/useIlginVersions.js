@@ -5,12 +5,7 @@ import { parseYamlText } from "../utils/yamlParser";
 const STORAGE_KEY_DATA = "Ilgin_versions_data";
 const STORAGE_KEY_FILE_NAME = "Ilgin_versions_filename";
 
-/**
- * Ilgin versiyon verisinin okunması, yüklenmesi, sıralanması,
- * aranması ve localStorage ile kalıcı saklanması mantığını barındıran hook.
- */
 export function useIlginVersions() {
-  // 1. İlk açılışta veriyi localStorage'dan oku
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY_DATA);
     if (saved) {
@@ -32,7 +27,6 @@ export function useIlginVersions() {
   const [error, setError] = useState(null);
   const [urlLoading, setUrlLoading] = useState(false);
 
-  // Veriyi hem React State'e hem de localStorage'a kaydeden yardımcı fonksiyon
   const updateDataAndStore = useCallback((newData, newFileName) => {
     setData(newData);
     localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(newData));
@@ -43,20 +37,73 @@ export function useIlginVersions() {
     }
   }, []);
 
+  // YAML Objesini Standart Versiyon Formatına Çeviren Yardımcı
+  const normalizeYamlToVersions = (parsedData, fallbackTag = "") => {
+    if (!parsedData) return [];
+    
+    // Eğer dosya içinde 'versions' dizisi varsa onu kullan
+    if (Array.isArray(parsedData.versions)) {
+      return parsedData.versions;
+    }
+    
+    // Standart Helm Chart yapısındaysa (name, version vs.) tekil versiyon objesi oluştur
+    if (parsedData.name || parsedData.version) {
+      return [{
+        name: parsedData.name || "ilgin-chart",
+        version: parsedData.version || fallbackTag || "1.0.0",
+        appVersion: parsedData.appVersion || parsedData.version || "",
+        description: parsedData.description || "GitHub Tag/Release Sürümü",
+        ...parsedData
+      }];
+    }
+    return [];
+  };
+
+  // Birden fazla GitHub Release / Tag metnini birleştirip ekrana basan fonksiyon
+  const loadMultipleYamlTexts = useCallback((yamlItems) => {
+    setLoading(true);
+    setError(null);
+
+    const mergedVersions = [];
+
+    yamlItems.forEach(({ text, tag, fileName: sourceFile }) => {
+      const { data: parsed } = parseYamlText(text, sourceFile || tag);
+      if (parsed) {
+        const extracted = normalizeYamlToVersions(parsed, tag);
+        extracted.forEach((newVer) => {
+          // Aynı versiyon numarası varsa çakışmayı önle/güncelle
+          const exists = mergedVersions.some(
+            (v) => v.name === newVer.name && v.version === newVer.version
+          );
+          if (!exists) {
+            mergedVersions.push(newVer);
+          }
+        });
+      }
+    });
+
+    if (mergedVersions.length > 0) {
+      updateDataAndStore({ versions: mergedVersions }, `GitHub'dan ${mergedVersions.length} Sürüm Yüklendi`);
+    } else {
+      setError("GitHub dosyaları parse edilemedi veya geçerli versiyon bulunamadı.");
+    }
+    setLoading(false);
+  }, [updateDataAndStore]);
+
   const applyParsedResult = useCallback((rawText, sourceName) => {
     const { data: parsed, error: parseError } = parseYamlText(rawText, sourceName);
     if (parseError) {
       setError(parseError);
       return;
     }
-    updateDataAndStore(parsed, sourceName);
+    const versions = normalizeYamlToVersions(parsed);
+    updateDataAndStore({ versions }, sourceName);
     setError(null);
   }, [updateDataAndStore]);
 
-  // İlk açılış kontrolü: Eğer localStorage boşsa 'public/Ilgin-versions.yaml' dosyasını yükle
   useEffect(() => {
     const hasStoredData = localStorage.getItem(STORAGE_KEY_DATA);
-    if (hasStoredData) return; // Zaten saklanmış veri varsa dışarıdan tekrar çekme
+    if (hasStoredData) return;
 
     setLoading(true);
     fetch("/Ilgin-versions.yaml")
@@ -67,95 +114,73 @@ export function useIlginVersions() {
       .then((text) => applyParsedResult(text, "Ilgin-versions.yaml"))
       .catch((err) => {
         console.warn("Otomatik dosya okuma uyarısı:", err.message);
-        setError("Varsayılan dosya yüklenemedi. Lütfen 'Farklı YAML Yükle' butonu ile dosyanızı seçin.");
       })
       .finally(() => setLoading(false));
   }, [applyParsedResult]);
 
-  // Kullanıcının dosya yüklemesi -> mevcut listeyle birleştirir ve localStorage'a yazar
   const handleFileUpload = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setError(null);
-
     const reader = new FileReader();
     reader.onload = (e) => {
       const rawText = e.target?.result;
       if (typeof rawText !== "string") return;
 
       const { data: parsed, error: parseError } = parseYamlText(rawText, file.name);
-
-      if (parseError || !parsed?.versions) {
-        setError(parseError || `"${file.name}" dosyasından versiyon okunamadı.`);
+      if (parseError) {
+        setError(parseError);
         return;
       }
 
-      // Yeni gelen versiyonları aynı isimli olanların üzerine yazıp listeye ekle
+      const newVersions = normalizeYamlToVersions(parsed);
       const existing = Array.isArray(data?.versions) ? data.versions : [];
       const merged = [...existing];
 
-      parsed.versions.forEach((newVersion) => {
-        const idx = merged.findIndex((v) => v.name === newVersion.name);
-        if (idx >= 0) {
-          merged[idx] = newVersion;
-        } else {
-          merged.push(newVersion);
-        }
+      newVersions.forEach((nv) => {
+        const idx = merged.findIndex((v) => v.name === nv.name && v.version === nv.version);
+        if (idx >= 0) merged[idx] = nv;
+        else merged.push(nv);
       });
 
-      const updatedData = { versions: merged };
-      const updatedFileName = `Son eklenen: ${file.name}`;
-      
-      updateDataAndStore(updatedData, updatedFileName);
+      updateDataAndStore({ versions: merged }, `Son eklenen: ${file.name}`);
     };
     reader.readAsText(file);
   };
 
-  // Verilen URL'den YAML içeriğini çekme ve kaydetme
   const fetchFromUrl = useCallback(async (targetUrl) => {
-  if (!targetUrl) return;
+    if (!targetUrl) return;
 
-  // 1. CORS Engeline Takılan GitHub Release Linkini RAW Linke Dönüştür
-  let cleanUrl = targetUrl;
-  
-  if (cleanUrl.includes("github.com") && cleanUrl.includes("/releases/download/")) {
-    // Örneğin: https://github.com/ilginpuhur/ilgin-charts/releases/download/v2.0.0/ilgin-chart-2.0.0.yaml
-    // Dönüşecek: https://raw.githubusercontent.com/ilginpuhur/ilgin-charts/v2.0.0/ilgin-chart-2.0.0.yaml
-    cleanUrl = cleanUrl
-      .replace("github.com", "raw.githubusercontent.com")
-      .replace("/releases/download/", "/");
-  }
+    setUrlLoading(true);
+    setError(null);
 
-  setLoading(true);
-  setError(null);
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      
+      const fileNameOnly = targetUrl.split("/").pop();
+      const { data: parsed, error: parseError } = parseYamlText(text, fileNameOnly);
 
-  try {
-    const response = await fetch(cleanUrl);
-    if (!response.ok) {
-      throw new Error(`Dosya indirilemedi (HTTP ${response.status})`);
+      if (parseError) {
+        setError(parseError);
+      } else {
+        const extracted = normalizeYamlToVersions(parsed);
+        if (extracted.length > 0) {
+          updateDataAndStore({ versions: extracted }, "URL'den yüklendi");
+        } else {
+          setError("YAML okundu fakat geçerli versiyon verisi çıkarılamadı.");
+        }
+      }
+    } catch (err) {
+      console.error("URL'den çekme hatası:", err.message);
+      setError("Dosya çekilirken hata oluştu: " + err.message);
+    } finally {
+      setUrlLoading(false);
     }
-    const text = await response.text();
-    
-    // YAML parse etme işlemin
-    const { data: parsed, error: parseError } = parseYamlText(text, cleanUrl.split("/").pop());
+  }, [updateDataAndStore]);
 
-    if (parseError) {
-      setError(parseError);
-    } else if (parsed?.versions) {
-      updateDataAndStore({ versions: parsed.versions }, "URL'den yüklendi");
-    } else {
-      setError("YAML ayrıştırıldı ancak geçerli 'versions' yapısı bulunamadı.");
-    }
-  } catch (err) {
-    console.error("URL'den çekme hatası:", err.message);
-    setError("Dosya çekilirken CORS veya Ağ Hatası oluştu: " + err.message);
-  } finally {
-    setLoading(false);
-  }
-}, []); // Bağımlılık dizisini boş tutarak sonsuz döngüyü engelle
-
-  // Saklanan verileri sıfırlayıp varsayılana dönme fonksiyonu
   const clearStorage = () => {
     localStorage.removeItem(STORAGE_KEY_DATA);
     localStorage.removeItem(STORAGE_KEY_FILE_NAME);
@@ -163,13 +188,11 @@ export function useIlginVersions() {
     setFileName("Ilgin-versions.yaml");
   };
 
-  // Versiyonları sırala
   const sortedVersions = useMemo(() => {
     const list = Array.isArray(data?.versions) ? [...data.versions] : [];
     return list.sort(compareSemVerDesc);
   }, [data]);
 
-  // Arama filtresi
   const filteredVersions = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return sortedVersions;
@@ -194,6 +217,7 @@ export function useIlginVersions() {
     filteredVersions,
     handleFileUpload,
     fetchFromUrl,
+    loadMultipleYamlTexts,
     urlLoading,
     clearStorage,
   };
