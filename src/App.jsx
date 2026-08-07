@@ -6,7 +6,7 @@ import VersionAccordion from "./components/VersionAccordion";
 import { LoadingState, NoResultsState } from "./components/EmptyState";
 import logo from "./assets/logo.png";
 import bannerImage from "./assets/image3fac66.jpg";
-
+import  ServiceFilter  from "./components/ServiceFilter";
 export default function App() {
   const fileInputRef = useRef(null);
   const {
@@ -21,6 +21,11 @@ export default function App() {
     fetchFromUrl,
     loadMultipleYamlTexts,
     urlLoading,
+    availableServices,
+   selectedService,
+   setSelectedService,
+   selectedServiceVersion,
+   setSelectedServiceVersion,
   } = useIlginVersions();
 
   useEffect(() => {
@@ -160,6 +165,13 @@ export default function App() {
           onFetchUrl={fetchFromUrl}
           urlLoading={urlLoading}
         />
+        <ServiceFilter
+     availableServices={availableServices}
+     selectedService={selectedService}
+     onServiceChange={setSelectedService}
+     selectedServiceVersion={selectedServiceVersion}
+     onVersionChange={setSelectedServiceVersion}
+/>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
