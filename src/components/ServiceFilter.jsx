@@ -1,4 +1,3 @@
-﻿import React from "react";
 import { Box, FormControl, InputLabel, Select, MenuItem, Stack, Chip } from "@mui/material";
 
 export default function ServiceFilter({
@@ -21,7 +20,15 @@ export default function ServiceFilter({
   if (serviceNames.length === 0) return null;
 
   return (
-    <Box sx={{ mb: 3, p: 2, bgcolor: "#ffffff", borderRadius: 2, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+    <Box
+      sx={(theme) => ({
+        mb: 3,
+        p: 2,
+        bgcolor: "background.paper",
+        borderRadius: 2,
+        boxShadow: theme.custom.filterShadow,
+      })}
+    >
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
         <FormControl fullWidth size="small">
           <InputLabel>Servise Göre Filtrele</InputLabel>

@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Paper, Typography, CircularProgress } from "@mui/material";
 
 export function LoadingState() {
@@ -17,7 +16,8 @@ export function NoResultsState({ searchTerm }) {
         p: 4,
         textAlign: "center",
         borderRadius: 3,
-        border: "1px dashed #c9d0d7",
+        border: "1px dashed",
+        borderColor: "divider",
         color: "text.secondary",
       }}
     >

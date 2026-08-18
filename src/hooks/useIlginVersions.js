@@ -1,35 +1,63 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { compareSemVerDesc } from "../utils/semver";
 import { parseYamlText } from "../utils/yamlParser";
+import { fetchReleaseYamls } from "../utils/githubReleases";
 
-const STORAGE_KEY_DATA = "Ilgin_versions_data";
-const STORAGE_KEY_FILE_NAME = "Ilgin_versions_filename";
+// v2: versiyon objesi { name, chartVersion, services: [...] } şeklinde saklanıyor.
+// Eski (düzleştirilmiş) v1 verisi bu anahtarla otomatik olarak devre dışı kalıyor.
+const STORAGE_KEY_DATA = "ilgin_versions_data_v2";
+const STORAGE_KEY_FILE_NAME = "ilgin_versions_filename_v2";
+
+const DEFAULT_FILE = "/ilgin-versions.yaml";
+const DEFAULT_FILE_LABEL = "ilgin-versions.yaml";
+
+const readStoredData = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DATA);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed?.versions) ? parsed : null;
+  } catch (e) {
+    console.error("localStorage okuma hatası:", e);
+    return null;
+  }
+};
+
+const versionKey = (v) => `${v.name}@${v.chartVersion || ""}`;
+
+// Arama kutusu için versiyonun tüm metinsel içeriğinden tek bir havuz oluşturur.
+const buildHaystack = (v) =>
+  [
+    v.name,
+    v.chartName,
+    v.chartVersion,
+    v.appVersion,
+    v.description,
+    v.releaseDate,
+    ...(v.services || []).flatMap((s) => [s.name, s.version]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
 export function useIlginVersions() {
-  const [data, setData] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_DATA);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("localStorage okuma hatası:", e);
-      }
-    }
-    return { versions: [] };
-  });
+  const [data, setData] = useState(() => readStoredData() || { versions: [] });
+  const [fileName, setFileName] = useState(
+    () => localStorage.getItem(STORAGE_KEY_FILE_NAME) || DEFAULT_FILE_LABEL
+  );
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [fileName, setFileName] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY_FILE_NAME) || "Ilgin-versions.yaml";
-  });
-
-  const [loading, setLoading] = useState(false);
+  // Kayıtlı veri yoksa ilk yükleme hemen başlayacağı için spinner'la açılıyoruz.
+  const [loading, setLoading] = useState(() => !readStoredData());
   const [error, setError] = useState(null);
-  const [urlLoading, setUrlLoading] = useState(false);
+  const [notice, setNotice] = useState(null);
 
   // Servis bazlı filtreleme state'leri
   const [selectedService, setSelectedService] = useState("");
   const [selectedServiceVersion, setSelectedServiceVersion] = useState("");
+
+  // StrictMode'un effect'i iki kez çalıştırmasına karşı koruma.
+  const didInitRef = useRef(false);
 
   const updateDataAndStore = useCallback((newData, newFileName) => {
     setData(newData);
@@ -41,131 +69,30 @@ export function useIlginVersions() {
     }
   }, []);
 
-  // YAML Objesini Standart Versiyon Formatına Çeviren Yardımcı
-  const normalizeYamlToVersions = (parsedData, fallbackTag = "") => {
-    if (!parsedData) return [];
+  // Birden fazla YAML metnini tekilleştirip tek listeye indirger.
+  const mergeYamlItems = useCallback((yamlItems) => {
+    const merged = [];
+    const seen = new Set();
 
-    if (Array.isArray(parsedData.versions)) {
-      return parsedData.versions;
-    }
+    yamlItems.forEach(({ text, tag, fileName: sourceFile, releaseDate }) => {
+      const { data: parsed } = parseYamlText(text, sourceFile || tag, { tag, releaseDate });
+      if (!parsed) return;
 
-    if (parsedData.name || parsedData.version) {
-      return [
-        {
-          name: parsedData.name || "ilgin-chart",
-          version: parsedData.version || fallbackTag || "1.0.0",
-          appVersion: parsedData.appVersion || parsedData.version || "",
-          description: parsedData.description || "GitHub Tag/Release Sürümü",
-          ...parsedData,
-        },
-      ];
-    }
-    return [];
-  };
-
-  // Birden fazla GitHub Release / Tag metnini birleştirip ekrana basan fonksiyon
-  const loadMultipleYamlTexts = useCallback(
-    (yamlItems) => {
-      setLoading(true);
-      setError(null);
-
-      const mergedVersions = [];
-
-      yamlItems.forEach(({ text, tag, fileName: sourceFile }) => {
-        const { data: parsed } = parseYamlText(text, sourceFile || tag);
-        if (parsed) {
-          const extracted = normalizeYamlToVersions(parsed, tag);
-          extracted.forEach((newVer) => {
-            const exists = mergedVersions.some(
-              (v) => v.name === newVer.name && v.version === newVer.version
-            );
-            if (!exists) {
-              mergedVersions.push(newVer);
-            }
-          });
-        }
+      parsed.versions.forEach((newVer) => {
+        const key = versionKey(newVer);
+        if (seen.has(key)) return;
+        seen.add(key);
+        merged.push(newVer);
       });
+    });
 
-      if (mergedVersions.length > 0) {
-        updateDataAndStore(
-          { versions: mergedVersions },
-          `GitHub'dan ${mergedVersions.length} Sürüm Yüklendi`
-        );
-      } else {
-        setError("GitHub dosyaları parse edilemedi veya geçerli versiyon bulunamadı.");
-      }
-      setLoading(false);
-    },
-    [updateDataAndStore]
-  );
-
-  const applyParsedResult = useCallback(
-    (rawText, sourceName) => {
-      const { data: parsed, error: parseError } = parseYamlText(rawText, sourceName);
-      if (parseError) {
-        setError(parseError);
-        return;
-      }
-      const versions = normalizeYamlToVersions(parsed);
-      updateDataAndStore({ versions }, sourceName);
-      setError(null);
-    },
-    [updateDataAndStore]
-  );
-
-  useEffect(() => {
-    const hasStoredData = localStorage.getItem(STORAGE_KEY_DATA);
-    if (hasStoredData) return;
-
-    setLoading(true);
-    fetch("/Ilgin-versions.yaml")
-      .then((res) => {
-        if (!res.ok) throw new Error("Varsayılan Ilgin-versions.yaml bulunamadı.");
-        return res.text();
-      })
-      .then((text) => applyParsedResult(text, "Ilgin-versions.yaml"))
-      .catch((err) => {
-        console.warn("Otomatik dosya okuma uyarısı:", err.message);
-      })
-      .finally(() => setLoading(false));
-  }, [applyParsedResult]);
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setError(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const rawText = e.target?.result;
-      if (typeof rawText !== "string") return;
-
-      const { data: parsed, error: parseError } = parseYamlText(rawText, file.name);
-      if (parseError) {
-        setError(parseError);
-        return;
-      }
-
-      const newVersions = normalizeYamlToVersions(parsed);
-      const existing = Array.isArray(data?.versions) ? data.versions : [];
-      const merged = [...existing];
-
-      newVersions.forEach((nv) => {
-        const idx = merged.findIndex((v) => v.name === nv.name && v.version === nv.version);
-        if (idx >= 0) merged[idx] = nv;
-        else merged.push(nv);
-      });
-
-      updateDataAndStore({ versions: merged }, `Son eklenen: ${file.name}`);
-    };
-    reader.readAsText(file);
-  };
+    return merged;
+  }, []);
 
   const fetchFromUrl = useCallback(
     async (targetUrl) => {
-      if (!targetUrl) return;
+      if (!targetUrl) return false;
 
-      setUrlLoading(true);
       setError(null);
 
       try {
@@ -178,104 +105,236 @@ export function useIlginVersions() {
 
         if (parseError) {
           setError(parseError);
-        } else {
-          const extracted = normalizeYamlToVersions(parsed);
-          if (extracted.length > 0) {
-            updateDataAndStore({ versions: extracted }, "URL'den yüklendi");
-          } else {
-            setError("YAML okundu fakat geçerli versiyon verisi çıkarılamadı.");
-          }
+          return false;
         }
+        if (!parsed.versions.length) {
+          setError("YAML okundu fakat geçerli versiyon verisi çıkarılamadı.");
+          return false;
+        }
+
+        updateDataAndStore({ versions: parsed.versions }, fileNameOnly || "URL'den yüklendi");
+        return true;
       } catch (err) {
         console.error("URL'den çekme hatası:", err.message);
         setError("Dosya çekilirken hata oluştu: " + err.message);
-      } finally {
-        setUrlLoading(false);
+        return false;
       }
     },
     [updateDataAndStore]
   );
 
-  const clearStorage = () => {
+  // { ok, reason } döner; reason yerel dosyaya düşerken kullanıcıya gösterilir.
+  const loadFromGithub = useCallback(async () => {
+    setError(null);
+    setNotice(null);
+
+    try {
+      const { items, skipped, hasMore } = await fetchReleaseYamls();
+      const merged = mergeYamlItems(items);
+
+      if (!merged.length) {
+        return {
+          ok: false,
+          reason: skipped.length
+            ? `${skipped.length} release bulundu fakat hiçbirinden YAML indirilemedi.`
+            : "GitHub'da yayınlanmış release bulunamadı.",
+        };
+      }
+
+      updateDataAndStore(
+        { versions: merged },
+        `GitHub · ${merged.length} sürüm`
+      );
+
+      // Kapsam dışında kalan release'leri sessizce yutmuyoruz.
+      const notes = [];
+      if (skipped.length) notes.push(`${skipped.length} release'te YAML bulunamadı`);
+      if (hasMore) notes.push("yalnızca en yeni release'ler gösteriliyor");
+      setNotice(notes.length ? notes.join(" · ") : null);
+
+      if (skipped.length) {
+        console.warn("[YAML bulunamadı] Atlanan tag'ler:", skipped.join(", "));
+      }
+      return { ok: true };
+    } catch (err) {
+      console.warn("GitHub yükleme hatası:", err);
+      return { ok: false, reason: err.message };
+    }
+  }, [mergeYamlItems, updateDataAndStore]);
+
+  const loadDefaultFile = useCallback(async () => {
+    try {
+      const res = await fetch(DEFAULT_FILE);
+      if (!res.ok) throw new Error(`Varsayılan ${DEFAULT_FILE_LABEL} bulunamadı.`);
+      const text = await res.text();
+
+      const { data: parsed, error: parseError } = parseYamlText(text, DEFAULT_FILE_LABEL);
+      if (parseError || !parsed.versions.length) return false;
+
+      updateDataAndStore({ versions: parsed.versions }, DEFAULT_FILE_LABEL);
+      return true;
+    } catch (err) {
+      console.warn("Varsayılan dosya okuma uyarısı:", err.message);
+      return false;
+    }
+  }, [updateDataAndStore]);
+
+  // Tek giriş noktası: ?dataUrl= -> GitHub Releases -> yerel varsayılan dosya.
+  // Yükleme bayrağının tek sahibi burası, alt fonksiyonlar ona dokunmuyor.
+  const loadInitialData = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const fileUrl =
+        urlParams.get("dataUrl") ||
+        urlParams.get("target") ||
+        urlParams.get("url") ||
+        urlParams.get("v");
+
+      if (fileUrl) {
+        await fetchFromUrl(fileUrl);
+        return;
+      }
+
+      const github = await loadFromGithub();
+      if (github.ok) return;
+
+      // GitHub'dan veri gelmediyse yerel örnek dosyaya düşüyoruz.
+      if (await loadDefaultFile()) {
+        setError(null);
+        setNotice(`Yerel örnek dosya gösteriliyor — GitHub: ${github.reason}`);
+      } else {
+        setError(github.reason);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchFromUrl, loadFromGithub, loadDefaultFile]);
+
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
+    // Kayıtlı veri varsa üzerine yazmıyoruz; kullanıcı "Yenile" ile tazeleyebilir.
+    if (readStoredData()) return;
+
+    loadInitialData();
+  }, [loadInitialData]);
+
+  const refresh = useCallback(() => loadInitialData(), [loadInitialData]);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const rawText = e.target?.result;
+      if (typeof rawText !== "string") return;
+
+      const { data: parsed, error: parseError } = parseYamlText(rawText, file.name);
+      if (parseError) {
+        setError(parseError);
+        return;
+      }
+
+      const existing = Array.isArray(data?.versions) ? data.versions : [];
+      const merged = [...existing];
+
+      parsed.versions.forEach((nv) => {
+        const idx = merged.findIndex((v) => versionKey(v) === versionKey(nv));
+        if (idx >= 0) merged[idx] = nv;
+        else merged.push(nv);
+      });
+
+      updateDataAndStore({ versions: merged }, `Son eklenen: ${file.name}`);
+    };
+
+    reader.onerror = () => setError(`"${file.name}" okunamadı.`);
+    reader.readAsText(file);
+
+    // Aynı dosyayı tekrar seçebilmek için input'u sıfırla.
+    event.target.value = "";
+  };
+
+  const clearStorage = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_DATA);
     localStorage.removeItem(STORAGE_KEY_FILE_NAME);
     setData({ versions: [] });
-    setFileName("Ilgin-versions.yaml");
-  };
+    setFileName(DEFAULT_FILE_LABEL);
+    setError(null);
+    setNotice(null);
+    setSelectedService("");
+    setSelectedServiceVersion("");
+  }, []);
 
-  // 1. Sürümleri Sıralama (Diğer filtrelerin çalışabilmesi için EN ÜSTE alındı)
+  // 1. Sürümleri sıralama
   const sortedVersions = useMemo(() => {
     const list = Array.isArray(data?.versions) ? [...data.versions] : [];
     return list.sort(compareSemVerDesc);
   }, [data]);
 
-  // 2. Yüklenen tüm sürümlerden benzersiz servis isimlerini ve versiyonlarını çıkarma
+  // 2. Tüm sürümlerden benzersiz servis adları ve sürümleri
   const availableServices = useMemo(() => {
-    const serviceMap = {};
+    const serviceMap = new Map();
 
     sortedVersions.forEach((v) => {
-      const deps = v.dependencies || v.services || [];
-      if (Array.isArray(deps)) {
-        deps.forEach((dep) => {
-          if (dep.name) {
-            if (!serviceMap[dep.name]) {
-              serviceMap[dep.name] = new Set();
-            }
-            if (dep.version) {
-              serviceMap[dep.name].add(dep.version);
-            }
-          }
-        });
-      }
+      (v.services || []).forEach((dep) => {
+        if (!dep?.name) return;
+        if (!serviceMap.has(dep.name)) serviceMap.set(dep.name, new Set());
+        if (dep.version) serviceMap.get(dep.name).add(dep.version);
+      });
     });
 
     const result = {};
-    Object.keys(serviceMap).forEach((srv) => {
-      result[srv] = Array.from(serviceMap[srv]);
+    [...serviceMap.keys()].sort().forEach((srv) => {
+      result[srv] = [...serviceMap.get(srv)].sort((a, b) =>
+        b.localeCompare(a, undefined, { numeric: true })
+      );
     });
     return result;
   }, [sortedVersions]);
 
-  // 3. Tekil ve Birleştirilmiş Filtreleme (Hem Arama Metni Hem de Servis Seçimi)
+  // Seçili servis listeden kalkarsa filtreyi kilitli bırakmayalım.
+  useEffect(() => {
+    if (selectedService && !availableServices[selectedService]) {
+      setSelectedService("");
+      setSelectedServiceVersion("");
+    }
+  }, [availableServices, selectedService]);
+
+  // 3. Arama metni + servis seçimi birleşik filtresi
   const filteredVersions = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
     return sortedVersions.filter((v) => {
-      // A) Arama Kutusu Filtresi
-      const term = searchTerm.trim().toLowerCase();
-      const matchesSearch =
-        !term ||
-        Object.values(v || {})
-          .flatMap((val) => (typeof val === "object" && val !== null ? Object.values(val) : val))
-          .some((val) => val != null && String(val).toLowerCase().includes(term));
+      const matchesSearch = !term || buildHaystack(v).includes(term);
+      if (!matchesSearch) return false;
 
-      // B) Servis ve Servis Versiyonu Filtresi
-      const deps = v.dependencies || v.services || [];
-      let matchesService = true;
+      if (!selectedService) return true;
 
-      if (selectedService) {
-        const foundDep = deps.find((d) => d.name === selectedService);
-        if (!foundDep) {
-          matchesService = false;
-        } else if (selectedServiceVersion && foundDep.version !== selectedServiceVersion) {
-          matchesService = false;
-        }
-      }
+      const foundDep = (v.services || []).find((d) => d.name === selectedService);
+      if (!foundDep) return false;
+      if (selectedServiceVersion && foundDep.version !== selectedServiceVersion) return false;
 
-      return matchesSearch && matchesService;
+      return true;
     });
   }, [sortedVersions, searchTerm, selectedService, selectedServiceVersion]);
 
   return {
     loading,
     error,
+    notice,
     fileName,
     searchTerm,
     setSearchTerm,
     sortedVersions,
     filteredVersions,
     handleFileUpload,
-    fetchFromUrl,
-    loadMultipleYamlTexts,
-    urlLoading,
+    refresh,
     clearStorage,
     availableServices,
     selectedService,

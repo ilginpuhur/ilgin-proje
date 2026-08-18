@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Storage as StorageIcon,
   Web as WebIcon,

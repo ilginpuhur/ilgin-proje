@@ -1,17 +1,19 @@
-// SemVer Ayıklama
-export const extractSemVer = (name = "") => {
-  const match = String(name).match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+// SemVer Ayiklama
+export const extractSemVer = (value = "") => {
+  const match = String(value).match(/(\d+)\.(\d+)(?:\.(\d+))?/);
   if (!match) return [0, 0, 0];
   return [Number(match[1]), Number(match[2]), Number(match[3] || 0)];
 };
 
-// SemVer Sıralama (Büyükten küçüğe)
+// Once chartVersion, yoksa baslik metni uzerinden surum okunur.
+const versionOf = (item) => extractSemVer(item?.chartVersion || item?.name);
+
+// SemVer Siralama (Buyukten kucuge)
 export const compareSemVerDesc = (a, b) => {
-  const va = extractSemVer(a?.name);
-  const vb = extractSemVer(b?.name);
+  const va = versionOf(a);
+  const vb = versionOf(b);
   for (let i = 0; i < 3; i++) {
     if (vb[i] !== va[i]) return vb[i] - va[i];
   }
   return 0;
 };
-

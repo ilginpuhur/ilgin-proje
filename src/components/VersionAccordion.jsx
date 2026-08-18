@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Accordion,
   AccordionSummary,
@@ -16,10 +15,8 @@ import { extractSemVer } from "../utils/semver";
 import ServiceCard from "./ServiceCard";
 
 export default function VersionAccordion({ version, isLatest }) {
-  const services = Object.entries(version).filter(
-    ([key]) => key !== "name" && key !== "releaseDate"
-  );
-  const semVerParts = extractSemVer(version.name);
+  const services = version.services || [];
+  const [major, minor] = extractSemVer(version.chartVersion || version.name);
 
   return (
     <Accordion
@@ -28,52 +25,64 @@ export default function VersionAccordion({ version, isLatest }) {
       elevation={0}
       sx={{
         borderRadius: "12px !important",
-        border: "1px solid #e3e7eb",
+        border: "1px solid",
+        borderColor: "divider",
         overflow: "hidden",
         "&:before": { display: "none" },
       }}
     >
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
-        sx={{ px: 3, py: 0.5, "&:hover": { bgcolor: "#f8f9fb" } }}
+        sx={{ px: 3, py: 0.5, "&:hover": { bgcolor: "action.hover" } }}
       >
         <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%" }}>
           <Avatar
-            sx={{
-              bgcolor: isLatest ? "#2f6feb" : "#dbe2ea",
-              color: isLatest ? "#fff" : "#5b6b7c",
+            sx={(theme) => ({
+              bgcolor: isLatest ? "primary.main" : theme.custom.neutralAvatarBg,
+              color: isLatest ? "#fff" : theme.custom.neutralAvatarText,
               width: 40,
               height: 40,
               fontSize: 13,
               fontWeight: 700,
-            }}
+            })}
           >
-            {semVerParts[0]}.{semVerParts[1]}
+            {major}.{minor}
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography fontWeight={700} sx={{ color: "#1a2027" }}>
+            <Typography fontWeight={700} sx={{ color: "text.primary" }}>
               {version.name || "İsimsiz Versiyon"}
             </Typography>
-            {version.releaseDate && (
-              <Typography variant="caption" color="text.secondary">
-                Yayın Tarihi: {String(version.releaseDate)}
-              </Typography>
-            )}
+            <Typography variant="caption" color="text.secondary">
+              {version.releaseDate
+                ? `Yayın Tarihi: ${version.releaseDate}`
+                : `${services.length} servis`}
+            </Typography>
           </Box>
-          {isLatest && <Chip label="En Güncel" size="small" color="primary" sx={{ fontWeight: 600 }} />}
+          {isLatest && (
+            <Chip label="En Güncel" size="small" color="primary" sx={{ fontWeight: 600 }} />
+          )}
         </Stack>
       </AccordionSummary>
 
       <Divider />
 
-      <AccordionDetails sx={{ px: 3, py: 2.5, bgcolor: "#fbfcfd" }}>
-        <Grid container spacing={1.5}>
-          {services.map(([key, value]) => (
-            <ServiceCard key={key} serviceKey={key} value={value} />
-          ))}
-        </Grid>
+      <AccordionDetails sx={(theme) => ({ px: 3, py: 2.5, bgcolor: theme.custom.detailsBg })}>
+        {services.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Bu sürüm için servis bilgisi bulunamadı.
+          </Typography>
+        ) : (
+          <Grid container spacing={1.5}>
+            {services.map((service) => (
+              <ServiceCard
+                key={service.name}
+                name={service.name}
+                version={service.version}
+              />
+            ))}
+          </Grid>
+        )}
       </AccordionDetails>
     </Accordion>
   );
 }
-

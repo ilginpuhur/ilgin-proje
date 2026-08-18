@@ -1,18 +1,8 @@
-import React, { useState } from "react";
-import {
-  Grid,
-  Paper,
-  Button,
-  TextField,
-  InputAdornment,
-  Chip,
-  Box,
-  CircularProgress,
-} from "@mui/material";
+import { Grid, Paper, Button, TextField, InputAdornment, Chip, Box } from "@mui/material";
 import {
   UploadFile as UploadFileIcon,
   Search as SearchIcon,
-  Link as LinkIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 
 export default function Toolbar({
@@ -23,19 +13,14 @@ export default function Toolbar({
   fileName,
   error,
   totalCount,
-  onFetchUrl,
-  urlLoading,
+  onRefresh,
+  onClear,
+  loading,
 }) {
-  const [urlInput, setUrlInput] = useState("");
-
-  const handleFetchClick = () => {
-    onFetchUrl(urlInput);
-  };
-
   return (
     <Paper
       elevation={0}
-      sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 3, border: "1px solid #e3e7eb" }}
+      sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 3, border: "1px solid", borderColor: "divider" }}
     >
       <input
         type="file"
@@ -46,7 +31,7 @@ export default function Toolbar({
       />
 
       <Grid container spacing={2} sx={{ alignItems: "center" }}>
-        <Grid item xs={12} sm={5}>
+        <Grid size={{ xs: 12, sm: 5 }}>
           <Button
             variant="contained"
             fullWidth
@@ -57,64 +42,35 @@ export default function Toolbar({
               borderRadius: 2,
               py: 1.1,
               fontWeight: 600,
-              bgcolor: "#2f6feb",
-              "&:hover": { bgcolor: "#255bc4" },
+              bgcolor: "primary.main",
+              "&:hover": { bgcolor: "primary.dark" },
             }}
           >
             Farklı YAML Yükle
           </Button>
         </Grid>
 
-        <Grid item xs={12} sm={7}>
+        <Grid size={{ xs: 12, sm: 7 }}>
           <TextField
             fullWidth
             placeholder="Versiyon veya servis ara..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon color="action" />
-                </InputAdornment>
-              ),
-              sx: { borderRadius: 2 },
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon color="action" />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 2 },
+              },
             }}
           />
         </Grid>
       </Grid>
 
-      <Grid container spacing={2} sx={{ alignItems: "center", mt: 0.5 }}>
-        <Grid item xs={12} sm={9}>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="YAML dosyasının URL'i (örn: https://raw.githubusercontent.com/.../Chart.yaml)"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LinkIcon color="action" fontSize="small" />
-                </InputAdornment>
-              ),
-              sx: { borderRadius: 2 },
-            }}
-          />
-        </Grid>
-        <Grid item xs={12} sm={3}>
-          <Button
-            variant="outlined"
-            fullWidth
-            disabled={urlLoading || !urlInput.trim()}
-            onClick={handleFetchClick}
-            sx={{ textTransform: "none", borderRadius: 2, py: 0.9, fontWeight: 600 }}
-          >
-            {urlLoading ? <CircularProgress size={20} /> : "URL'den Çek"}
-          </Button>
-        </Grid>
-      </Grid>
-
-      <Box sx={{ mt: 2, display: "flex", gap: 1, alignItems: "center" }}>
+      <Box sx={{ mt: 2, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
         <Chip
           label={`Aktif Dosya: ${fileName || "Yüklenmedi"}`}
           variant="outlined"
@@ -127,6 +83,27 @@ export default function Toolbar({
           size="small"
           color="primary"
         />
+
+        <Box sx={{ flexGrow: 1 }} />
+
+        <Button
+          size="small"
+          startIcon={<RefreshIcon />}
+          onClick={onRefresh}
+          disabled={loading}
+          sx={{ textTransform: "none", fontWeight: 600 }}
+        >
+          Yenile
+        </Button>
+        <Button
+          size="small"
+          color="inherit"
+          onClick={onClear}
+          disabled={loading || totalCount === 0}
+          sx={{ textTransform: "none", fontWeight: 600 }}
+        >
+          Temizle
+        </Button>
       </Box>
     </Paper>
   );

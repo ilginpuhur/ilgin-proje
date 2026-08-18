@@ -1,26 +1,30 @@
-import React from "react";
 import { Grid, Paper, Avatar, Box, Typography, Chip } from "@mui/material";
 import { getServiceIcon } from "../utils/serviceIcon";
 
-export default function ServiceCard({ serviceKey, value }) {
-  const displayValue = String(value);
+// "1.2.3" -> "v1.2.3", ama "belirtilmedi" gibi metinlere dokunmayız.
+const formatVersion = (value) => {
+  const text = String(value ?? "").trim();
+  if (!text) return "—";
+  return /^\d/.test(text) ? `v${text}` : text;
+};
 
+export default function ServiceCard({ name, version }) {
   return (
-    <Grid item xs={12} sm={4}>
+    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
       <Paper
         variant="outlined"
         sx={{ p: 1.5, borderRadius: 2, display: "flex", alignItems: "center", gap: 1.5 }}
       >
-        <Avatar sx={{ width: 32, height: 32, bgcolor: "#eef2f7", color: "#2f6feb" }}>
-          {getServiceIcon(serviceKey)}
+        <Avatar sx={(theme) => ({ width: 32, height: 32, bgcolor: theme.custom.iconAvatarBg, color: "primary.main" })}>
+          {getServiceIcon(name)}
         </Avatar>
         <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
           <Typography variant="body2" fontWeight={600} sx={{ textTransform: "uppercase" }} noWrap>
-            {serviceKey}
+            {name}
           </Typography>
         </Box>
         <Chip
-          label={displayValue.startsWith("v") ? displayValue : `v${displayValue}`}
+          label={formatVersion(version)}
           size="small"
           sx={{ fontWeight: 600, fontFamily: "monospace" }}
         />
@@ -28,4 +32,3 @@ export default function ServiceCard({ serviceKey, value }) {
     </Grid>
   );
 }
-
