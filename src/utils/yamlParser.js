@@ -79,6 +79,7 @@ export const parseYamlText = (rawText, sourceName = "dosya", meta = {}) => {
 
   try {
     const cleanText = rawText
+      .replace(/^\ufeff/, "")
       .replace(/\t/g, "  ")
       .replace(/\u00a0/g, " ")
       .replace(/\r\n/g, "\n");

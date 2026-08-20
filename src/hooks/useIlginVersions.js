@@ -1,15 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { compareSemVerDesc } from "../utils/semver";
 import { parseYamlText } from "../utils/yamlParser";
-import { fetchReleaseYamls } from "../utils/githubReleases";
 
 // v2: versiyon objesi { name, chartVersion, services: [...] } şeklinde saklanıyor.
 // Eski (düzleştirilmiş) v1 verisi bu anahtarla otomatik olarak devre dışı kalıyor.
 const STORAGE_KEY_DATA = "ilgin_versions_data_v2";
 const STORAGE_KEY_FILE_NAME = "ilgin_versions_filename_v2";
 
-const DEFAULT_FILE = "/ilgin-versions.yaml";
-const DEFAULT_FILE_LABEL = "ilgin-versions.yaml";
+// scripts/fetch-tfs-versions.mjs tarafından TFS'teki tag'lerden üretiliyor.
+const DEFAULT_FILE = "/tfs-versions.yaml";
+const DEFAULT_FILE_LABEL = "tfs-versions.yaml";
 
 const readStoredData = () => {
   try {
@@ -69,26 +69,6 @@ export function useIlginVersions() {
     }
   }, []);
 
-  // Birden fazla YAML metnini tekilleştirip tek listeye indirger.
-  const mergeYamlItems = useCallback((yamlItems) => {
-    const merged = [];
-    const seen = new Set();
-
-    yamlItems.forEach(({ text, tag, fileName: sourceFile, releaseDate }) => {
-      const { data: parsed } = parseYamlText(text, sourceFile || tag, { tag, releaseDate });
-      if (!parsed) return;
-
-      parsed.versions.forEach((newVer) => {
-        const key = versionKey(newVer);
-        if (seen.has(key)) return;
-        seen.add(key);
-        merged.push(newVer);
-      });
-    });
-
-    return merged;
-  }, []);
-
   const fetchFromUrl = useCallback(
     async (targetUrl) => {
       if (!targetUrl) return false;
@@ -123,45 +103,6 @@ export function useIlginVersions() {
     [updateDataAndStore]
   );
 
-  // { ok, reason } döner; reason yerel dosyaya düşerken kullanıcıya gösterilir.
-  const loadFromGithub = useCallback(async () => {
-    setError(null);
-    setNotice(null);
-
-    try {
-      const { items, skipped, hasMore } = await fetchReleaseYamls();
-      const merged = mergeYamlItems(items);
-
-      if (!merged.length) {
-        return {
-          ok: false,
-          reason: skipped.length
-            ? `${skipped.length} release bulundu fakat hiçbirinden YAML indirilemedi.`
-            : "GitHub'da yayınlanmış release bulunamadı.",
-        };
-      }
-
-      updateDataAndStore(
-        { versions: merged },
-        `GitHub · ${merged.length} sürüm`
-      );
-
-      // Kapsam dışında kalan release'leri sessizce yutmuyoruz.
-      const notes = [];
-      if (skipped.length) notes.push(`${skipped.length} release'te YAML bulunamadı`);
-      if (hasMore) notes.push("yalnızca en yeni release'ler gösteriliyor");
-      setNotice(notes.length ? notes.join(" · ") : null);
-
-      if (skipped.length) {
-        console.warn("[YAML bulunamadı] Atlanan tag'ler:", skipped.join(", "));
-      }
-      return { ok: true };
-    } catch (err) {
-      console.warn("GitHub yükleme hatası:", err);
-      return { ok: false, reason: err.message };
-    }
-  }, [mergeYamlItems, updateDataAndStore]);
-
   const loadDefaultFile = useCallback(async () => {
     try {
       const res = await fetch(DEFAULT_FILE);
@@ -179,10 +120,12 @@ export function useIlginVersions() {
     }
   }, [updateDataAndStore]);
 
-  // Tek giriş noktası: ?dataUrl= -> GitHub Releases -> yerel varsayılan dosya.
+  // Tek giriş noktası: ?dataUrl= -> TFS'ten üretilen varsayılan dosya.
   // Yükleme bayrağının tek sahibi burası, alt fonksiyonlar ona dokunmuyor.
   const loadInitialData = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    setNotice(null);
 
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -197,20 +140,13 @@ export function useIlginVersions() {
         return;
       }
 
-      const github = await loadFromGithub();
-      if (github.ok) return;
-
-      // GitHub'dan veri gelmediyse yerel örnek dosyaya düşüyoruz.
-      if (await loadDefaultFile()) {
-        setError(null);
-        setNotice(`Yerel örnek dosya gösteriliyor — GitHub: ${github.reason}`);
-      } else {
-        setError(github.reason);
+      if (!(await loadDefaultFile())) {
+        setError(`Varsayılan ${DEFAULT_FILE_LABEL} bulunamadı veya okunamadı.`);
       }
     } finally {
       setLoading(false);
     }
-  }, [fetchFromUrl, loadFromGithub, loadDefaultFile]);
+  }, [fetchFromUrl, loadDefaultFile]);
 
   useEffect(() => {
     if (didInitRef.current) return;
