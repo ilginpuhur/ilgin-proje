@@ -279,7 +279,7 @@ function main() {
     }
     versions.push(result.entry);
   }
-
+//resolve ile OUTPUT_FILE yolunu absolute path'e çeviriyoruz, sonra dumpYaml ile versiyonları yaml formatına çevirip writeFileSync ile dosyaya yazıyoruz.
   const outPath = path.resolve(OUTPUT_FILE);
   writeFileSync(outPath, dumpYaml({ versions }), "utf8");
 
