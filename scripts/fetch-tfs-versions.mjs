@@ -17,7 +17,7 @@
 //   WORK_DIR     - TFS'in clone edileceği geçici klasör (varsayılan: ".tfs-cache")
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 
@@ -36,21 +36,21 @@ const git = (args) =>
   execFileSync("git", args, { cwd: WORK_DIR, encoding: "utf8" }).trim();
 
 function ensureRepo() {
-  if (!existsSync(WORK_DIR)) {
-    mkdirSync(WORK_DIR, { recursive: true });
-    execFileSync("git", ["init"], { cwd: WORK_DIR });
-  }
+  // mkdirSync ve git init zaten var olan bir repo/klasör için no-op'tur,
+  // ayrıca varlık kontrolüne gerek yok.
+  mkdirSync(WORK_DIR, { recursive: true });
+  execFileSync("git", ["init", "-q"], { cwd: WORK_DIR });
 
-  const remotes = (() => {
-    try {
-      return execFileSync("git", ["remote"], { cwd: WORK_DIR, encoding: "utf8" });
-    } catch {
-      return "";
-    }
-  })();
-
-  if (!remotes.includes("secondary")) {
-    git(["remote", "add", "secondary", TFS_REPO_URL]);
+  // "secondary" zaten varsa add hata verir; o durumda URL'i güncelleriz.
+  // Bu sayede TFS_REPO_URL sonradan değişse bile eski remote'a takılı kalmaz.
+  // stdio: "pipe" ile git'in "already exists" hatasının konsola sızması engelleniyor.
+  try {
+    execFileSync("git", ["remote", "add", "secondary", TFS_REPO_URL], {
+      cwd: WORK_DIR,
+      stdio: "pipe",
+    });
+  } catch {
+    git(["remote", "set-url", "secondary", TFS_REPO_URL]);
   }
 
   console.log(`TFS'e bağlanılıyor: ${TFS_REPO_URL}`);
