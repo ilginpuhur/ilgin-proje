@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# scripts/fetch-tfs-versions.mjs'in klonladığı geçici repo
+.tfs-cache
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
