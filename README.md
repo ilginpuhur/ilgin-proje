@@ -7,9 +7,10 @@ tek ekranda gösteren React + Vite arayüzü.
 
 ```bash
 npm install
-npm run dev      # geliştirme sunucusu
-npm run build    # üretim derlemesi
-npm run lint     # eslint
+npm run dev             # geliştirme sunucusu
+npm run build           # üretim derlemesi
+npm run lint             # eslint
+npm run fetch-versions   # TFS'ten public/tfs-versions.yaml üretir (TFS_REPO_URL gerekir)
 ```
 
 ## Veri kaynakları
@@ -21,12 +22,25 @@ Uygulama açılışta şu sırayla veri arar (`src/hooks/useIlginVersions.js`):
 2. **`?dataUrl=` query parametresi** — belirtilen URL'deki YAML'ı çeker.
    `target`, `url` ve `v` de aynı işi görür.
    Örnek: `http://localhost:5173/?dataUrl=https://raw.githubusercontent.com/.../Chart.yaml`
-3. **GitHub Releases** — `ilginpuhur/ilgin-charts` deposundaki en yeni 30 release taranır.
-   Her release için önce `.yaml`/`.yml` asset'i, yoksa tag altındaki bilinen dosya adları denenir.
-4. **`public/ilgin-versions.yaml`** — GitHub'a ulaşılamazsa gösterilen yerel örnek.
+3. **`public/tfs-versions.yaml`** — hiçbiri yoksa gösterilen varsayılan dosya.
+   `scripts/fetch-tfs-versions.mjs` ile TFS'teki chart reposunun tag'lerinden üretilir
+   (bkz. aşağıdaki "TFS'ten versiyon üretme" bölümü).
 
 Ayrıca arayüzden elle YAML yüklenebilir; yüklenen dosya mevcut listeye eklenir
 (aynı chart + sürüm varsa üzerine yazılır).
+
+## TFS'ten versiyon üretme
+
+`public/tfs-versions.yaml` elle güncellenmez; `scripts/fetch-tfs-versions.mjs` scripti
+TFS'teki chart reposundaki her tag'i tarayıp içindeki Chart.yaml'ları toplar ve tek bir
+YAML dosyası olarak yazar:
+
+```bash
+TFS_REPO_URL="https://tfs.sirket.com/.../ilgin-charts" npm run fetch-versions
+```
+
+Opsiyonel: `OUTPUT_FILE` (varsayılan `public/tfs-versions.yaml`), `WORK_DIR`
+(varsayılan `.tfs-cache`, geçici clone klasörü).
 
 ## Desteklenen YAML formatları
 
@@ -59,6 +73,6 @@ versions:
 | --- | --- |
 | `src/hooks/useIlginVersions.js` | Tüm veri yükleme, saklama, sıralama ve filtreleme mantığı |
 | `src/utils/yamlParser.js` | YAML → `{ name, chartVersion, services: [...] }` normalizasyonu |
-| `src/utils/githubReleases.js` | GitHub Releases'ten chart YAML'larını indirme |
 | `src/utils/semver.js` | Sürüm ayıklama ve azalan sıralama |
+| `scripts/fetch-tfs-versions.mjs` | TFS chart reposunun tag'lerinden `public/tfs-versions.yaml` üretir |
 | `src/components/` | Toolbar, ServiceFilter, VersionAccordion, ServiceCard, EmptyState |
