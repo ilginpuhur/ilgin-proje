@@ -73,7 +73,7 @@ function tagMeta(tag) {
     releaseDate: isoDate ? isoDate.slice(0, 10) : "",
   };
 }
-
+//belirli bir tag'deki belirli bir dosyayı okuyup JS objesine çevirmeye çalışıe
 function readYamlAt(tag, filePath) {
   try {
     const text = git(["show", `${tag}:${filePath}`]);
