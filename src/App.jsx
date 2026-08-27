@@ -8,7 +8,7 @@ import ServiceFilter from "./components/ServiceFilter";
 import VersionAccordion from "./components/VersionAccordion";
 import { LoadingState, NoResultsState } from "./components/EmptyState";
 import logo from "./assets/logo.png";
-import bannerImage from "./assets/image3fac66.jpg";
+import bannerImage from "./assets/aselsan-logo.png";
 
 export default function App() {
   const fileInputRef = useRef(null);
@@ -44,7 +44,7 @@ export default function App() {
           }}
         >
           <img src={logo} alt="Logo" style={{ height: 120, objectFit: "contain" }} />
-          <img src={bannerImage} alt="Banner" style={{ height: 120, objectFit: "contain" }} />
+          <img src={bannerImage} alt="Banner" style={{ height: 100, objectFit: "contain" }} />
         </Box>
 
         <Stack direction="row" spacing={0.5} sx={{ mb: 4 }} alignItems="flex-start" justifyContent="space-between">

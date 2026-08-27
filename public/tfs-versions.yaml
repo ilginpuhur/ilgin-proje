@@ -1,5 +1,6 @@
 versions:
-  - name: ilgin - Chart 1.74.3
+  - tag: 1.74.3
+    name: ilgin - Chart 1.74.3
     chartName: ilgin
     chartVersion: 1.74.3
     appVersion: ''
@@ -20,7 +21,8 @@ versions:
       - name: pirireis-gis
         version: 0.1.60
         repository: '@ilgin-helm'
-  - name: ilgin - Chart 1.75.0
+  - tag: 1.75.0
+    name: ilgin - Chart 1.75.0
     chartName: ilgin
     chartVersion: 1.75.0
     appVersion: ''

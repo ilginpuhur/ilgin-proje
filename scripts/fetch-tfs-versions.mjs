@@ -2,8 +2,8 @@
 // public/ altına tek bir YAML dosyası olarak yazar.
 //
 // Repo yapısı sabit: her tag'de chart dosyası her zaman
-// "helm-chart/Chart.yaml" yolunda bulunuyor. Bu yüzden dosya aramaya/
-// içerikten tahmin etmeye gerek yok, doğrudan bu yoldan okunuyor.
+// "helm-chart/Chart.yaml" yolunda bulunuyor. Tag adları da doğrudan
+// sürüm numarasıdır (örn. "1.76.0").
 //
 // Kullanım:
 //   TFS_REPO_URL="https://tfs.sirket.com/.../ilgin-charts" node scripts/fetch-tfs-versions.mjs
@@ -21,7 +21,7 @@ const TFS_REPO_URL = process.env.TFS_REPO_URL;
 const OUTPUT_FILE = process.env.OUTPUT_FILE || "public/tfs-versions.yaml";
 const WORK_DIR = process.env.WORK_DIR || ".tfs-cache";
 
-// Chart dosyasının repo içindeki sabit yolu.
+// Chart dosyasının repo içindeki sabit yolu (her tag'de aynı).
 const CHART_PATH = "helm-chart/Chart.yaml";
 
 if (!TFS_REPO_URL) {
@@ -75,8 +75,10 @@ function tagMeta(tag) {
 
 // Belirli bir tag'deki belirli bir dosyayı okuyup JS objesine çevirmeye çalışır.
 function readYamlAt(tag, filePath) {
+  console.log(`  dosya çekiliyor: ${tag}:${filePath}`);
   try {
     const text = git(["show", `${tag}:${filePath}`]);
+    console.log(`  dosya çekildi (${text.length} karakter), parse ediliyor...`);
     return loadYaml(text);
   } catch (err) {
     console.warn(`[atlandı] ${tag}:${filePath} parse edilemedi (${err.message})`);
@@ -85,6 +87,7 @@ function readYamlAt(tag, filePath) {
 }
 
 function buildVersionEntry(tag) {
+  console.log(`[${tag}] işleniyor...`);
   const chart = readYamlAt(tag, CHART_PATH);
   if (!chart) {
     console.warn(`[atlandı] ${tag}: ${CHART_PATH} bulunamadı ya da parse edilemedi.`);
@@ -92,7 +95,8 @@ function buildVersionEntry(tag) {
   }
 
   const { taggerName, releaseDate } = tagMeta(tag);
-  const chartVersion = String(chart.version || tag.replace(/^v/, ""));
+  // (tag'ler TFS'te her zaman temiz sürüm numarasıdır "1.75.0" gibi).
+  const chartVersion = tag.replace(/^v/, "");
   const chartName = chart.name || "Ilgin";
 
   const services = (chart.dependencies || [])
@@ -172,8 +176,9 @@ function main() {
 
   console.log(`Yazıldı: ${outPath} (${versions.length} versiyon)`);
   if (skipped.length) {
-    console.warn(`${CHART_PATH} bulunamadığı için atlanan tag'ler: ${skipped.join(", ")}`);
+    console.warn(`Chart dosyası bulunamadığı için atlanan tag'ler: ${skipped.join(", ")}`);
   }
+  console.log
 }
 
 main();

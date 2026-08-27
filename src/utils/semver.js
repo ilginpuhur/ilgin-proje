@@ -1,7 +1,10 @@
 // SemVer Ayiklama
 export const extractSemVer = (value = "") => {
   const match = String(value).match(/(\d+)\.(\d+)(?:\.(\d+))?/);
-  if (!match) return [0, 0, 0];
+  if (!match) {
+    console.warn(`[extractSemVer] "${value}" içinde sürüm numarası bulunamadı, 0.0.0 kullanılacak.`);
+    return [0, 0, 0];
+  }
   return [Number(match[1]), Number(match[2]), Number(match[3] || 0)];
 };
 

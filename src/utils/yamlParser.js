@@ -14,25 +14,11 @@ const pickVersion = (...candidates) => {
   return "";
 };
 
-// Repo "hakim" -> "ilgin" olarak yeniden adlandırıldı. Yeniden adlandırmadan önce
-// yayınlanmış eski GitHub release'leri hâlâ o commit'teki "Hakim-*" isimlerini
-// taşıyor; bu isimleri güncel "Ilgin-*" ismine eşleyerek servis listesinde ve
-// filtrede tek bir servis olarak görünmelerini sağlıyoruz.
-const NAME_ALIASES = [[/^hakim\b/i, "Ilgin"]];
-
-const normalizeName = (rawName) => {
-  const trimmed = String(rawName).trim();
-  for (const [pattern, replacement] of NAME_ALIASES) {
-    if (pattern.test(trimmed)) return trimmed.replace(pattern, replacement);
-  }
-  return trimmed;
-};
-
 const toServiceList = (dependencies) =>
   dependencies
     .filter((dep) => dep && dep.name)
     .map((dep) => ({
-      name: normalizeName(dep.name),
+      name: String(dep.name).trim(),
       version: dep.version ? String(dep.version) : "belirtilmedi",
       repository: dep.repository ? String(dep.repository) : "",
     }));
@@ -46,13 +32,13 @@ const normalizeLegacyEntry = (entry) => {
   const flatServices = Object.entries(rest)
     .filter(([, value]) => value != null && typeof value !== "object")
     .map(([serviceName, value]) => ({
-      name: normalizeName(serviceName),
+      name: String(serviceName).trim(),
       version: String(value),
       repository: "",
     }));
 
   const chartVersion = pickVersion(version, name);
-  const chartName = name ? normalizeName(name) : "";
+  const chartName = name ? String(name).trim() : "";
 
   return {
     name: chartName || `Chart ${chartVersion}`.trim(),
@@ -88,7 +74,7 @@ export const parseYamlText = (rawText, sourceName = "dosya", meta = {}) => {
 
     // 1. HELM CHART FORMATI
     if (parsedData && Array.isArray(parsedData.dependencies)) {
-      const chartName = parsedData.name ? normalizeName(parsedData.name) : "Ilgin";
+      const chartName = parsedData.name ? String(parsedData.name).trim() : "Ilgin";
       // Chart içindeki sürüm bir placeholder olabilir; sırasıyla tag ve dosya adına düşeriz.
       const chartVersion = pickVersion(parsedData.version, meta.tag, sourceName);
 
