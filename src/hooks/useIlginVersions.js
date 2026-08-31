@@ -23,36 +23,18 @@ const readStoredData = () => {
   }
 };
 
-const versionKey = (v) => `${v.name}@${v.chartVersion || ""}`;
-
-// Arama kutusu için versiyonun tüm metinsel içeriğinden tek bir havuz oluşturur.
-const buildHaystack = (v) =>
-  [
-    v.name,
-    v.chartName,
-    v.chartVersion,
-    v.appVersion,
-    v.description,
-    v.releaseDate,
-    ...(v.services || []).flatMap((s) => [s.name, s.version]),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
 export function useIlginVersions() {
   const [data, setData] = useState(() => readStoredData() || { versions: [] });
-  const [fileName, setFileName] = useState(
-    () => localStorage.getItem(STORAGE_KEY_FILE_NAME) || DEFAULT_FILE_LABEL
-  );
 
-  const [searchTerm, setSearchTerm] = useState("");
   // Kayıtlı veri yoksa ilk yükleme hemen başlayacağı için spinner'la açılıyoruz.
   const [loading, setLoading] = useState(() => !readStoredData());
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // Servis bazlı filtreleme state'leri
+  // Servis bazlı filtreleme state'leri.
+  // selectedService "" ise "Genel Sürüm  modundayız: selectedServiceVersion
+  // o durumda tag'den gelen chartVersion'ı, servis seçiliyken ise o servisin
+  // sürümünü tutar.
   const [selectedService, setSelectedService] = useState("");
   const [selectedServiceVersion, setSelectedServiceVersion] = useState("");
 
@@ -64,7 +46,6 @@ export function useIlginVersions() {
     localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(newData));
 
     if (newFileName) {
-      setFileName(newFileName);
       localStorage.setItem(STORAGE_KEY_FILE_NAME, newFileName);
     }
   }, []);
@@ -158,54 +139,11 @@ export function useIlginVersions() {
     loadInitialData();
   }, [loadInitialData]);
 
-  const refresh = useCallback(() => loadInitialData(), [loadInitialData]);
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setError(null);
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      const rawText = e.target?.result;
-      if (typeof rawText !== "string") return;
-
-      const { data: parsed, error: parseError } = parseYamlText(rawText, file.name);
-      if (parseError) {
-        setError(parseError);
-        return;
-      }
-
-      const existing = Array.isArray(data?.versions) ? data.versions : [];
-      const merged = [...existing];
-
-      parsed.versions.forEach((nv) => {
-        const idx = merged.findIndex((v) => versionKey(v) === versionKey(nv));
-        if (idx >= 0) merged[idx] = nv;
-        else merged.push(nv);
-      });
-
-      updateDataAndStore({ versions: merged }, `Son eklenen: ${file.name}`);
-    };
-
-    reader.onerror = () => setError(`"${file.name}" okunamadı.`);
-    reader.readAsText(file);
-
-    // Aynı dosyayı tekrar seçebilmek için input'u sıfırla.
-    event.target.value = "";
-  };
-
-  const clearStorage = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY_DATA);
-    localStorage.removeItem(STORAGE_KEY_FILE_NAME);
-    setData({ versions: [] });
-    setFileName(DEFAULT_FILE_LABEL);
-    setError(null);
-    setNotice(null);
+  const refresh = useCallback(() => {
     setSelectedService("");
     setSelectedServiceVersion("");
-  }, []);
+    return loadInitialData();
+  }, [loadInitialData]);
 
   // 1. Sürümleri sıralama
   const sortedVersions = useMemo(() => {
@@ -234,6 +172,15 @@ export function useIlginVersions() {
     return result;
   }, [sortedVersions]);
 
+  // 3. "Genel Sürüm  seçilebilecek, doğrudan tag'den gelen chartVersion'lar.
+  const availableGeneralVersions = useMemo(() => {
+    const versions = new Set();
+    sortedVersions.forEach((v) => {
+      if (v.chartVersion) versions.add(v.chartVersion);
+    });
+    return [...versions].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  }, [sortedVersions]);
+
   // Seçili servis listeden kalkarsa filtreyi kilitli bırakmayalım.
   useEffect(() => {
     if (selectedService && !availableServices[selectedService]) {
@@ -242,37 +189,30 @@ export function useIlginVersions() {
     }
   }, [availableServices, selectedService]);
 
-  // 3. Arama metni + servis seçimi birleşik filtresi
+  // 4. Servis (veya genel tag sürümü) seçimine göre filtre
   const filteredVersions = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-
     return sortedVersions.filter((v) => {
-      const matchesSearch = !term || buildHaystack(v).includes(term);
-      if (!matchesSearch) return false;
-
-      if (!selectedService) return true;
+      if (!selectedService) {
+        return !selectedServiceVersion || (v.chartVersion || "").startsWith(selectedServiceVersion);
+      }
 
       const foundDep = (v.services || []).find((d) => d.name === selectedService);
       if (!foundDep) return false;
-      if (selectedServiceVersion && foundDep.version !== selectedServiceVersion) return false;
+      if (selectedServiceVersion && !(foundDep.version || "").startsWith(selectedServiceVersion)) return false;
 
       return true;
     });
-  }, [sortedVersions, searchTerm, selectedService, selectedServiceVersion]);
+  }, [sortedVersions, selectedService, selectedServiceVersion]);
 
   return {
     loading,
     error,
     notice,
-    fileName,
-    searchTerm,
-    setSearchTerm,
     sortedVersions,
     filteredVersions,
-    handleFileUpload,
     refresh,
-    clearStorage,
     availableServices,
+    availableGeneralVersions,
     selectedService,
     setSelectedService,
     selectedServiceVersion,

@@ -1,9 +1,8 @@
-import { useRef } from "react";
 import { Box, Container, Typography, Stack, Alert, IconButton, Tooltip } from "@mui/material";
-import { DarkMode as DarkModeIcon, LightMode as LightModeIcon } from "@mui/icons-material";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import { useIlginVersions } from "./hooks/useIlginVersions";
 import { useThemeMode } from "./context/ThemeModeContext";
-import Toolbar from "./components/Toolbar";
 import ServiceFilter from "./components/ServiceFilter";
 import VersionAccordion from "./components/VersionAccordion";
 import { LoadingState, NoResultsState } from "./components/EmptyState";
@@ -11,21 +10,16 @@ import logo from "./assets/logo.png";
 import bannerImage from "./assets/aselsan-logo.png";
 
 export default function App() {
-  const fileInputRef = useRef(null);
   const { mode, toggleMode } = useThemeMode();
   const {
     loading,
     error,
     notice,
-    fileName,
-    searchTerm,
-    setSearchTerm,
     sortedVersions,
     filteredVersions,
-    handleFileUpload,
     refresh,
-    clearStorage,
     availableServices,
+    availableGeneralVersions,
     selectedService,
     setSelectedService,
     selectedServiceVersion,
@@ -52,9 +46,6 @@ export default function App() {
             <Typography variant="h4" fontWeight={700} sx={{ color: "text.primary" }}>
               Ilgin Versions
             </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Ilgin BE, FE, Infra ve dinamik servis sürüm detayları.
-            </Typography>
           </Stack>
 
           <Tooltip title={mode === "light" ? "Karanlık moda geç" : "Aydınlık moda geç"}>
@@ -64,25 +55,16 @@ export default function App() {
           </Tooltip>
         </Stack>
 
-        <Toolbar
-          fileInputRef={fileInputRef}
-          onFileUpload={handleFileUpload}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          fileName={fileName}
-          error={error}
-          totalCount={sortedVersions.length}
-          onRefresh={refresh}
-          onClear={clearStorage}
-          loading={loading}
-        />
-
         <ServiceFilter
           availableServices={availableServices}
+          availableGeneralVersions={availableGeneralVersions}
           selectedService={selectedService}
           onServiceChange={setSelectedService}
           selectedServiceVersion={selectedServiceVersion}
           onVersionChange={setSelectedServiceVersion}
+          totalCount={sortedVersions.length}
+          onRefresh={refresh}
+          loading={loading}
         />
 
         {error && (
@@ -100,7 +82,7 @@ export default function App() {
         {loading ? (
           <LoadingState />
         ) : filteredVersions.length === 0 ? (
-          <NoResultsState searchTerm={searchTerm} />
+          <NoResultsState />
         ) : (
           <Stack spacing={1.5}>
             {filteredVersions.map((version, idx) => (

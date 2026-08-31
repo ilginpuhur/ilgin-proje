@@ -8,7 +8,7 @@ export function LoadingState() {
   );
 }
 
-export function NoResultsState({ searchTerm }) {
+export function NoResultsState() {
   return (
     <Paper
       elevation={0}
@@ -21,11 +21,7 @@ export function NoResultsState({ searchTerm }) {
         color: "text.secondary",
       }}
     >
-      <Typography variant="body1">
-        {searchTerm
-          ? `"${searchTerm}" kriterine uygun versiyon bulunamadı.`
-          : "Gösterilecek versiyon verisi bulunamadı."}
-      </Typography>
+      <Typography variant="body1">Seçili filtreye uygun versiyon bulunamadı.</Typography>
     </Paper>
   );
 }

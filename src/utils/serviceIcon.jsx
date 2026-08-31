@@ -1,9 +1,7 @@
-import {
-  Storage as StorageIcon,
-  Web as WebIcon,
-  Cloud as CloudIcon,
-  Memory as MemoryIcon,
-} from "@mui/icons-material";
+import StorageIcon from "@mui/icons-material/Storage";
+import WebIcon from "@mui/icons-material/Web";
+import CloudIcon from "@mui/icons-material/Cloud";
+import MemoryIcon from "@mui/icons-material/Memory";
 
 // Servis İkonu Seçimi
 export const getServiceIcon = (key = "") => {
