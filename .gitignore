@@ -15,6 +15,9 @@ dist-ssr
 # scripts/fetch-tfs-versions.mjs'in klonladığı geçici repo
 .tfs-cache
 
+# scripts/gen-test-data.mjs'in ürettiği sahte performans test verisi
+public/test-large.yaml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
