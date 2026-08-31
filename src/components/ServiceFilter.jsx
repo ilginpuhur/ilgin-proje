@@ -1,8 +1,10 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Autocomplete, TextField, Stack, IconButton, Tooltip, Typography } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
 const GENERAL_LABEL = "Genel Sürüm (Hakim)";
 const ALL_VERSIONS_LABEL = "Tüm Sürümler";
+const VERSION_INPUT_DEBOUNCE_MS = 200;
 
 export default function ServiceFilter({
   availableServices,
@@ -15,18 +17,47 @@ export default function ServiceFilter({
   onRefresh,
   loading,
 }) {
-  const serviceNames = Object.keys(availableServices || {});
+  const serviceOptions = useMemo(() => {
+    const serviceNames = Object.keys(availableServices || {});
+    return [
+      { value: "", label: GENERAL_LABEL },
+      ...serviceNames.map((name) => ({ value: name, label: name })),
+    ];
+  }, [availableServices]);
 
-  const serviceOptions = serviceNames.map((name) => ({ value: name, label: name }));
   const currentServiceOption =
     serviceOptions.find((o) => o.value === selectedService) || null;
 
-  const versionList = selectedService
-    ? availableServices[selectedService] || []
-    : availableGeneralVersions || [];
-  const versionOptions = versionList.map((v) => ({ value: v, label: v }));
+  const versionOptions = useMemo(() => {
+    const versionList = selectedService
+      ? availableServices[selectedService] || []
+      : availableGeneralVersions || [];
+    return versionList.map((v) => ({ value: v, label: v }));
+  }, [availableServices, availableGeneralVersions, selectedService]);
+
   const currentVersionOption =
     versionOptions.find((o) => o.value === selectedServiceVersion) || null;
+
+  // Her tuşta üstteki (pahalı) filtreyi tetiklemek yerine, kutuda anlık yazmayı
+  // yerelde tutup asıl state güncellemesini kısa bir süre erteliyoruz.
+  const [localVersionInput, setLocalVersionInput] = useState(selectedServiceVersion);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    setLocalVersionInput(selectedServiceVersion);
+  }, [selectedServiceVersion]);
+
+  useEffect(() => {
+    return () => clearTimeout(debounceRef.current);
+  }, []);
+
+  const handleVersionInputChange = (newInputValue) => {
+    setLocalVersionInput(newInputValue);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onVersionChange(newInputValue);
+    }, VERSION_INPUT_DEBOUNCE_MS);
+  };
 
   return (
     <Box
@@ -51,7 +82,7 @@ export default function ServiceFilter({
             onVersionChange("");
           }}
           renderInput={(params) => (
-            <TextField {...params} label="Servis Ara" placeholder={GENERAL_LABEL} />
+            <TextField {...params} label="Hakim" placeholder={GENERAL_LABEL} />
           )}
         />
 
@@ -60,13 +91,18 @@ export default function ServiceFilter({
           size="small"
           options={versionOptions}
           value={currentVersionOption}
-          inputValue={selectedServiceVersion}
+          inputValue={localVersionInput}
           onInputChange={(_, newInputValue, reason) => {
-            if (reason === "input") onVersionChange(newInputValue);
+            if (reason === "input") handleVersionInputChange(newInputValue);
           }}
           getOptionLabel={(o) => o.label}
           isOptionEqualToValue={(o, v) => o.value === v.value}
-          onChange={(_, newValue) => onVersionChange(newValue ? newValue.value : "")}
+          onChange={(_, newValue) => {
+            const value = newValue ? newValue.value : "";
+            clearTimeout(debounceRef.current);
+            setLocalVersionInput(value);
+            onVersionChange(value);
+          }}
           renderInput={(params) => (
             <TextField {...params} label="Sürüm Ara" placeholder={ALL_VERSIONS_LABEL} />
           )}

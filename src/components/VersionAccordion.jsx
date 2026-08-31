@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Accordion,
   AccordionSummary,
@@ -6,7 +7,6 @@ import {
   Avatar,
   Box,
   Typography,
-  Chip,
   Divider,
   Grid,
 } from "@mui/material";
@@ -14,13 +14,12 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { extractSemVer } from "../utils/semver";
 import ServiceCard from "./ServiceCard";
 
-export default function VersionAccordion({ version, isLatest }) {
+function VersionAccordion({ version }) {
   const services = version.services || [];
   const [major, minor] = extractSemVer(version.chartVersion || version.name);
 
   return (
     <Accordion
-      defaultExpanded={isLatest}
       disableGutters
       elevation={0}
       sx={{
@@ -38,8 +37,8 @@ export default function VersionAccordion({ version, isLatest }) {
         <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%" }}>
           <Avatar
             sx={(theme) => ({
-              bgcolor: isLatest ? "primary.main" : theme.custom.neutralAvatarBg,
-              color: isLatest ? "#fff" : theme.custom.neutralAvatarText,
+              bgcolor: theme.custom.neutralAvatarBg,
+              color: theme.custom.neutralAvatarText,
               width: 40,
               height: 40,
               fontSize: 13,
@@ -58,9 +57,6 @@ export default function VersionAccordion({ version, isLatest }) {
                 : `${services.length} servis`}
             </Typography>
           </Box>
-          {isLatest && (
-            <Chip label="En Güncel" size="small" color="primary" sx={{ fontWeight: 600 }} />
-          )}
         </Stack>
       </AccordionSummary>
 
@@ -86,3 +82,5 @@ export default function VersionAccordion({ version, isLatest }) {
     </Accordion>
   );
 }
+
+export default memo(VersionAccordion);

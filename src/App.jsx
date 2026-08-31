@@ -1,4 +1,5 @@
-import { Box, Container, Typography, Stack, Alert, IconButton, Tooltip } from "@mui/material";
+import { useEffect, useState } from "react";
+import { Box, Container, Typography, Stack, Alert, IconButton, Tooltip, Button } from "@mui/material";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import { useIlginVersions } from "./hooks/useIlginVersions";
@@ -8,6 +9,10 @@ import VersionAccordion from "./components/VersionAccordion";
 import { LoadingState, NoResultsState } from "./components/EmptyState";
 import logo from "./assets/logo.png";
 import bannerImage from "./assets/aselsan-logo.png";
+
+// Filtre sonucu çok genişlediğinde (örn. arama kutusunu silince) yüzlerce
+// kartı tek seferde DOM'a basmamak için sonuçları parça parça açıyoruz.
+const PAGE_SIZE = 20;
 
 export default function App() {
   const { mode, toggleMode } = useThemeMode();
@@ -26,9 +31,19 @@ export default function App() {
     setSelectedServiceVersion,
   } = useIlginVersions();
 
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Filtre kriteri değişince (servis ya da sürüm araması) baştan başla.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedService, selectedServiceVersion]);
+
+  const visibleVersions = filteredVersions.slice(0, visibleCount);
+  const hasMore = filteredVersions.length > visibleVersions.length;
+
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 3, md: 5 } }}>
-      <Container maxWidth="md">
+      <Container maxWidth="lg">
         <Box
           sx={{
             display: "flex",
@@ -44,7 +59,7 @@ export default function App() {
         <Stack direction="row" spacing={0.5} sx={{ mb: 4 }} alignItems="flex-start" justifyContent="space-between">
           <Stack spacing={0.5}>
             <Typography variant="h4" fontWeight={700} sx={{ color: "text.primary" }}>
-              Ilgin Versions
+              App Versions
             </Typography>
           </Stack>
 
@@ -85,13 +100,21 @@ export default function App() {
           <NoResultsState />
         ) : (
           <Stack spacing={1.5}>
-            {filteredVersions.map((version, idx) => (
+            {visibleVersions.map((version) => (
               <VersionAccordion
-                key={`${version.name}-${version.chartVersion}-${idx}`}
+                key={version.tag || version.chartVersion || version.name}
                 version={version}
-                isLatest={idx === 0}
               />
             ))}
+            {hasMore && (
+              <Button
+                variant="outlined"
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                sx={{ alignSelf: "center", mt: 1 }}
+              >
+                Daha fazla göster ({filteredVersions.length - visibleVersions.length} kalan)
+              </Button>
+            )}
           </Stack>
         )}
       </Container>

@@ -1,4 +1,7 @@
-import { Grid, Paper, Avatar, Box, Typography, Chip } from "@mui/material";
+import { memo, useState } from "react";
+import { Grid, Paper, Avatar, Box, Typography, Chip, Tooltip, IconButton } from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CheckIcon from "@mui/icons-material/Check";
 import { getServiceIcon } from "../utils/serviceIcon";
 
 // "1.2.3" -> "v1.2.3", ama "belirtilmedi" gibi metinlere dokunmayız.
@@ -8,12 +11,31 @@ const formatVersion = (value) => {
   return /^\d/.test(text) ? `v${text}` : text;
 };
 
-export default function ServiceCard({ name, version }) {
+function ServiceCard({ name, version }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(String(version ?? ""));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // panoya erişim reddedilirse sessizce yok say
+    }
+  };
+
   return (
     <Grid size={{ xs: 12, sm: 6, md: 4 }}>
       <Paper
         variant="outlined"
-        sx={{ p: 1.5, borderRadius: 2, display: "flex", alignItems: "center", gap: 1.5 }}
+        sx={{
+          p: 1.5,
+          borderRadius: 2,
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          "&:hover .copy-version-btn": { opacity: 1 },
+        }}
       >
         <Avatar sx={(theme) => ({ width: 32, height: 32, bgcolor: theme.custom.iconAvatarBg, color: "primary.main" })}>
           {getServiceIcon(name)}
@@ -28,7 +50,23 @@ export default function ServiceCard({ name, version }) {
           size="small"
           sx={{ fontWeight: 600, fontFamily: "monospace" }}
         />
+        <Tooltip title={copied ? "Kopyalandı" : "Sürümü kopyala"}>
+          <IconButton
+            className="copy-version-btn"
+            size="small"
+            onClick={handleCopy}
+            sx={{
+              opacity: 0,
+              transition: "opacity 0.15s",
+              "&:focus-visible": { opacity: 1 },
+            }}
+          >
+            {copied ? <CheckIcon fontSize="inherit" color="success" /> : <ContentCopyIcon fontSize="inherit" />}
+          </IconButton>
+        </Tooltip>
       </Paper>
     </Grid>
   );
 }
+
+export default memo(ServiceCard);
