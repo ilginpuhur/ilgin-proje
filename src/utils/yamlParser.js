@@ -74,12 +74,15 @@ export const parseYamlText = (rawText, sourceName = "dosya", meta = {}) => {
 
     // 1. HELM CHART FORMATI
     if (parsedData && Array.isArray(parsedData.dependencies)) {
-      const chartName = parsedData.name ? String(parsedData.name).trim() : "Ilgin";
+      const chartName = parsedData.name ? String(parsedData.name).trim() : "";
       // Chart içindeki sürüm bir placeholder olabilir; sırasıyla tag ve dosya adına düşeriz.
       const chartVersion = pickVersion(parsedData.version, meta.tag, sourceName);
+      const name = [chartName, chartVersion ? `Chart ${chartVersion}` : "Chart"]
+        .filter(Boolean)
+        .join(" - ");
 
       const formattedVersion = {
-        name: chartVersion ? `${chartName} - Chart ${chartVersion}` : `${chartName} - Chart`,
+        name,
         chartName,
         chartVersion,
         appVersion: parsedData.appVersion ? String(parsedData.appVersion) : "",

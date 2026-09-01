@@ -2,7 +2,7 @@
 // public/ altına tek bir YAML dosyası olarak yazar.
 //
 // Repo yapısı sabit: her tag'de chart dosyası her zaman
-// "<tag>/HelmChart.yaml" yolunda bulunuyor. Tag adları da doğrudan
+// "helm-chart/Chart.yaml" yolunda bulunuyor. Tag adları da doğrudan
 // sürüm numarasıdır (örn. "1.76.0").
 //
 // Kullanım:
@@ -21,9 +21,8 @@ const TFS_REPO_URL = process.env.TFS_REPO_URL;
 const OUTPUT_FILE = process.env.OUTPUT_FILE || "public/tfs-versions.yaml";
 const WORK_DIR = process.env.WORK_DIR || ".tfs-cache";
 
-// Chart dosyasının repo içindeki yolu: her tag kendi adını taşıyan bir
-// klasörde tutuyor (örn. "1.75.0/HelmChart.yaml").
-const chartPathFor = (tag) => `${tag}/HelmChart.yaml`;
+// Chart dosyasının repo içindeki sabit yolu (her tag'de aynı).
+const CHART_PATH = "helm-chart/Chart.yaml";
 
 if (!TFS_REPO_URL) {
   console.error("TFS_REPO_URL tanımlı değil. Örnek:");
@@ -89,17 +88,16 @@ function readYamlAt(tag, filePath) {
 
 function buildVersionEntry(tag) {
   console.log(`[${tag}] işleniyor...`);
-  const chartPath = chartPathFor(tag);
-  const chart = readYamlAt(tag, chartPath);
+  const chart = readYamlAt(tag, CHART_PATH);
   if (!chart) {
-    console.warn(`[atlandı] ${tag}: ${chartPath} bulunamadı ya da parse edilemedi.`);
+    console.warn(`[atlandı] ${tag}: ${CHART_PATH} bulunamadı ya da parse edilemedi.`);
     return { tag, failed: true };
   }
 
   const { taggerName, releaseDate } = tagMeta(tag);
   // (tag'ler TFS'te her zaman temiz sürüm numarasıdır "1.75.0" gibi).
   const chartVersion = tag.replace(/^v/, "");
-  const chartName = chart.name || "Ilgin";
+  const chartName = chart.name || "";
 
   const services = (chart.dependencies || [])
     .filter((d) => d && d.name)
@@ -109,17 +107,19 @@ function buildVersionEntry(tag) {
       repository: d.repository || "",
     }));
 
+  const name = [chartName, `Chart ${chartVersion}`].filter(Boolean).join(" - ");
+
   return {
     entry: {
       tag,
-      name: `${chartName} - Chart ${chartVersion}`,
+      name,
       chartName,
       chartVersion,
       appVersion: chart.appVersion ? String(chart.appVersion) : "",
       description: chart.description || "",
       releaseDate,
       taggerName,
-      sourceFile: chartPath,
+      sourceFile: CHART_PATH,
       services,
     },
   };
