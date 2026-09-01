@@ -2,7 +2,7 @@
 // public/ altına tek bir YAML dosyası olarak yazar.
 //
 // Repo yapısı sabit: her tag'de chart dosyası her zaman
-// "helm-chart/Chart.yaml" yolunda bulunuyor. Tag adları da doğrudan
+// "<tag>/HelmChart.yaml" yolunda bulunuyor. Tag adları da doğrudan
 // sürüm numarasıdır (örn. "1.76.0").
 //
 // Kullanım:
@@ -21,8 +21,9 @@ const TFS_REPO_URL = process.env.TFS_REPO_URL;
 const OUTPUT_FILE = process.env.OUTPUT_FILE || "public/tfs-versions.yaml";
 const WORK_DIR = process.env.WORK_DIR || ".tfs-cache";
 
-// Chart dosyasının repo içindeki sabit yolu (her tag'de aynı).
-const CHART_PATH = "helm-chart/Chart.yaml";
+// Chart dosyasının repo içindeki yolu: her tag kendi adını taşıyan bir
+// klasörde tutuyor (örn. "1.75.0/HelmChart.yaml").
+const chartPathFor = (tag) => `${tag}/HelmChart.yaml`;
 
 if (!TFS_REPO_URL) {
   console.error("TFS_REPO_URL tanımlı değil. Örnek:");
@@ -88,9 +89,10 @@ function readYamlAt(tag, filePath) {
 
 function buildVersionEntry(tag) {
   console.log(`[${tag}] işleniyor...`);
-  const chart = readYamlAt(tag, CHART_PATH);
+  const chartPath = chartPathFor(tag);
+  const chart = readYamlAt(tag, chartPath);
   if (!chart) {
-    console.warn(`[atlandı] ${tag}: ${CHART_PATH} bulunamadı ya da parse edilemedi.`);
+    console.warn(`[atlandı] ${tag}: ${chartPath} bulunamadı ya da parse edilemedi.`);
     return { tag, failed: true };
   }
 
@@ -117,7 +119,7 @@ function buildVersionEntry(tag) {
       description: chart.description || "",
       releaseDate,
       taggerName,
-      sourceFile: CHART_PATH,
+      sourceFile: chartPath,
       services,
     },
   };
