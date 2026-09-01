@@ -3,7 +3,13 @@
 Ilgin Helm chart sürümlerini ve her sürümdeki servis (BE / FE / Infra / GIS ...) versiyonlarını
 tek ekranda gösteren React + Vite arayüzü.
 
+
 ## Çalıştırma
+
+cd C:\Users\hakim\ilgin-proje
+$env:TFS_REPO_URL="https://github.com/ilginpuhur/ilgin-charts2.git"
+node scripts/fetch-tfs-versions.mjs
+
 
 ```bash
 npm install
