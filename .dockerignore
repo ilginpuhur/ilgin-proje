@@ -1,0 +1,7 @@
+node_modules
+dist
+.git
+.tfs-cache
+*.log
+.vscode
+.idea
