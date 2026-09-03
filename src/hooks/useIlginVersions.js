@@ -4,8 +4,8 @@ import { parseYamlText } from "../utils/yamlParser";
 
 // v2: versiyon objesi { name, chartVersion, services: [...] } şeklinde saklanıyor.
 // Eski (düzleştirilmiş) v1 verisi bu anahtarla otomatik olarak devre dışı kalıyor.
-const STORAGE_KEY_DATA = "ilgin_versions_data_v2";
-const STORAGE_KEY_FILE_NAME = "ilgin_versions_filename_v2";
+const STORAGE_KEY_DATA = "tfs_versions_data_v2";
+const STORAGE_KEY_FILE_NAME = "tfs_versions_filename_v2";
 
 // scripts/fetch-tfs-versions.mjs tarafından TFS'teki tag'lerden üretiliyor.
 const DEFAULT_FILE = "/tfs-versions.yaml";
