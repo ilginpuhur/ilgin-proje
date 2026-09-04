@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Autocomplete, TextField, Stack, IconButton, Tooltip, Typography } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
+// üstteki iki dropdown'ı (senin "Hakim" filtresi dediğin) yönetiyor:
 
 const GENERAL_LABEL = "Genel Sürüm (Hakim)";
 const ALL_VERSIONS_LABEL = "Tüm Sürümler";
